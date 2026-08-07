@@ -12,6 +12,8 @@ Project types: REST API, Frontend SPA. Plus common rules that apply to every lan
 /plugin install coding-rules@claude-coding-rules
 ```
 
+For developing the plugin from a local clone, see [DEBUG.md](DEBUG.md).
+
 ## Skills
 
 | Skill | What it does |
