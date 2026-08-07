@@ -1,12 +1,12 @@
 # Version
-1
+2
 
 Increase this version number whenever this rule file changes.
 
 # graphify Knowledge Graph (Optional Addon)
 
 **Optional.** Before adding this to a project, ASK the user whether they want to use graphify.
-Only wire it into the project's `CLAUDE.md` if they say yes.
+Only wire it into the project's `CODING_RULES.md` if they say yes.
 
 graphify turns a code folder into a queryable knowledge graph — god nodes, communities,
 cross-file relationships, fan-in/fan-out. The build is AST-only: no LLM, no API cost. Use it to
@@ -44,10 +44,11 @@ orient before grep and to spot god classes.
    - `--directed` is **required**. Without it the graph is undirected and total edge count blends
      incoming and outgoing — you cannot tell a healthy shared base (high fan-**in**) from a god
      class (high fan-**out**).
-4. **Customize the `CLAUDE.md` section** the installer wrote: replace generic `.`/`src`
-   references with the actual `<code-dir>`. Replace that section with this file's `# Version`
-   block and document title followed by the "Using" + "Refreshing" rules below. Keeping the
-   version with the copied rules allows `coding-rules:add-or-update` to detect stale copies.
+4. **Relocate the `CLAUDE.md` section** the installer wrote: remove it from `CLAUDE.md` and
+   instead add this file's `# Version` block and document title followed by the "Using" +
+   "Refreshing" rules below to the project's `CODING_RULES.md`, replacing generic `.`/`src`
+   references with the actual `<code-dir>`. Keeping the version with the copied rules allows
+   `/coding-rules:apply` to detect stale copies.
 5. **gitignore the output** — build artifacts + cache, never committed:
    ```
    graphify-out/
@@ -71,7 +72,7 @@ orient before grep and to spot god classes.
 
 ---
 
-## Rules to paste into the project's CLAUDE.md (only if the user opted in)
+## Rules to paste into the project's CODING_RULES.md (only if the user opted in)
 
 Prepend this file's `# Version` block and `# graphify Knowledge Graph (Optional Addon)` title
 when copying the following sections.

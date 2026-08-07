@@ -1,12 +1,12 @@
 # Version
-1
+2
 
 Increase this version number whenever this rule file changes.
 
 # Project Types Overview
 
 Project-type rule files live in the `project_type/` subfolder. They complement the language
-rules (`*_RULES.md`) — when setting up a project's `CLAUDE.md`, include the matching
+rules (`*_RULES.md`) — when setting up a project's `CODING_RULES.md`, include the matching
 project-type file in addition to `COMMON_RULES.md`, `AI_RULES.md`, and the language rules.
 
 Each project-type file references `COMMON_RULES.md` and the relevant language rules itself.

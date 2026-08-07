@@ -1,5 +1,5 @@
 # Version
-1
+2
 
 Increase this version number whenever this rule file changes.
 
@@ -9,7 +9,7 @@ See `COMMON_RULES.md` for rules that apply to all languages.
 
 Unlike the per-language `*_RULES.md` files, these rules are **language-independent** and
 **always apply**. They are not subject to the "some rules may not apply to this project"
-filtering — include them in every project's `CLAUDE.md`.
+filtering — include them in every project's `CODING_RULES.md`.
 
 These rules define the end-to-end workflow an AI agent must follow when planning and
 implementing changes. Each step is an existing skill referenced by its slash name; run the
@@ -99,8 +99,8 @@ bugs:fix
 ## Optional Addons
 
 These live in `ai_rules_addons/` and are **not** always-on. Each is opt-in per project — ASK
-the user whether they want it before wiring it into that project's `CLAUDE.md`.
+the user whether they want it before wiring it into that project's `CODING_RULES.md`.
 
 - [`ai_rules_addons/graphify.md`](ai_rules_addons/graphify.md) — graphify knowledge graph:
   scoped + directed AST build, folder layout, gitignore, and the query/refresh rules to paste
-  into a project's `CLAUDE.md`.
+  into a project's `CODING_RULES.md`.

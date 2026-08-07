@@ -1,5 +1,5 @@
 # Version
-2
+3
 
 Increase this version number whenever this rule file changes.
 
@@ -10,9 +10,12 @@ corresponding `*_RULES.md` files.
 
 ---
 
-## Keep CLAUDE.md in Sync
+## Keep CODING_RULES.md in Sync
 
-When working on a project, copy all relevant rules into the project's `CLAUDE.md` file:
+When working on a project, copy all relevant rules into the project's `CODING_RULES.md` file
+(project root). The project's `CLAUDE.md` carries only a small versioned pointer block that
+mandates reading `CODING_RULES.md` before code work — never the full rules, and never an
+`@import` of `CODING_RULES.md` (imports auto-expand into context every turn).
 
 - Always include all rules from `COMMON_RULES.md` and `AI_RULES.md`
 - Also include applicable language-specific, project-type, and supplemental rule files
@@ -20,10 +23,10 @@ When working on a project, copy all relevant rules into the project's `CLAUDE.md
 - Include optional addon rule files only when the user has opted in to that addon
 - If applicability is unclear, ask the user which rules to include
 - Include each source file's `# Version` block with its copied rules
-- If `CLAUDE.md` already exists, compare each source file's version with the corresponding copied
-  rule block and update only stale or unversioned blocks, keeping the result deduplicated
-- If `CLAUDE.md` contains coding-rule `@import` lines from an earlier run, replace those imports
-  with the corresponding rule content
+- If `CODING_RULES.md` already exists, compare each source file's version with the corresponding
+  copied rule block and update only stale or unversioned blocks, keeping the result deduplicated
+- If `CLAUDE.md` contains inlined rule blocks or coding-rule `@import` lines from an earlier run,
+  migrate that content into `CODING_RULES.md` and leave only the pointer block in `CLAUDE.md`
 
 ---
 

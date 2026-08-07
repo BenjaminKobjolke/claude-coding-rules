@@ -4,13 +4,13 @@ description: Audit the actual codebase for coding-rule violations and report the
 
 # Enforce Coding Rules
 
-First run `/coding-rules:apply` to ensure CLAUDE.md has the latest rules.
+First run `/coding-rules:apply` to ensure `CODING_RULES.md` has the latest rules (this also migrates legacy inlined rules out of CLAUDE.md).
 
 Then audit the actual project code against those rules. Do NOT auto-fix — report findings and let the user decide what to fix.
 
 ## Setup
 
-1. Read CLAUDE.md to determine which rules apply to this project
+1. Read `CODING_RULES.md` to determine which rules apply to this project. Fallback: if `CODING_RULES.md` does not exist, read legacy inlined rule blocks (`# Version` + rule title) from `CLAUDE.md`
 2. Detect the project language(s) from file extensions and project files
 3. Identify source directories — exclude: vendor, node_modules, build output, generated files, .git
 
@@ -60,7 +60,7 @@ Check that files, classes, functions, and variables follow the project's languag
 
 ## Audit: Language-Specific Rules
 
-If language-specific rules are in CLAUDE.md, also check those. Common checks:
+If language-specific rules are in `CODING_RULES.md`, also check those. Common checks:
 - **Localization**: hardcoded user-facing strings instead of using the localization library
 - **Framework patterns**: not following the framework's recommended patterns (e.g., raw fetch instead of API client, missing Pydantic validation at API boundaries)
 - **SCSS specifics**: `@import` instead of `@use`/`@forward` in `.scss` files; selector nesting deeper than 3 levels; hardcoded color/spacing values that should use variables from `_variables.scss`

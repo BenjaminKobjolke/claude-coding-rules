@@ -10,6 +10,7 @@ Run:  python sync_to_codex.py        (re-run any time to update)
 Test: python sync_to_codex.py --self-test
 """
 
+import re
 import shutil
 import sys
 from pathlib import Path
@@ -22,6 +23,8 @@ RELATIVE_NOTE = "Paths in this skill are relative to this skill's folder.\n\n"
 
 def adapt(body):
     """Rewrite Claude-plugin specifics for a standalone Codex skill."""
+    body = re.sub(r"<!-- claude-code-only:start -->.*?<!-- claude-code-only:end -->\n?",
+                  "", body, flags=re.DOTALL)
     body = body.replace("${CLAUDE_PLUGIN_ROOT}/", "")
     body = body.replace("`/coding-rules:apply`", "the `coding-rules-apply` skill")
     body = body.replace("/coding-rules:apply", "the coding-rules-apply skill")
@@ -74,6 +77,9 @@ def self_test():
     assert adapt("run /coding-rules:apply now") == "run the coding-rules-apply skill now"
     front, body = split_frontmatter("---\ndescription: d\n---\n\nBody.\n")
     assert front == ["description: d\n"] and body == "Body.\n", (front, repr(body))
+    stripped = adapt("keep A\n<!-- claude-code-only:start -->\nhook stuff\n"
+                     "<!-- claude-code-only:end -->\nkeep B\n")
+    assert stripped == "keep A\nkeep B\n", repr(stripped)
     print("self-test OK")
 
 

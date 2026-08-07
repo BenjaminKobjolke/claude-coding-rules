@@ -33,6 +33,9 @@ The script adapts the content for Codex:
 - `${CLAUDE_PLUGIN_ROOT}/...` paths become paths relative to the skill folder
 - `/coding-rules:apply` slash-command references become `coding-rules-apply` skill references
 - Claude-specific frontmatter is reduced to `name` + `description`
+- Sections between `<!-- claude-code-only:start -->` / `<!-- claude-code-only:end -->` markers
+  are stripped — Codex has no hooks or `.claude/settings.json`, so it gets the
+  `CODING_RULES.md` + `CLAUDE.md` pointer behavior but not the plan-acceptance reminder hook
 
 ## Update
 
