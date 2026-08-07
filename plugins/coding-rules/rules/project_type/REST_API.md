@@ -1,5 +1,5 @@
 # Version
-2
+3
 
 Increase this version number whenever this rule file changes.
 
@@ -83,6 +83,11 @@ project/
 declare(strict_types=1);
 
 require __DIR__ . '/../vendor/autoload.php';
+
+// PHP notices/deprecations must never corrupt JSON response bodies.
+// Real Throwables still reach the Slim error middleware.
+error_reporting(E_ALL & ~E_DEPRECATED & ~E_USER_DEPRECATED);
+ini_set('display_errors', '0');
 
 use Slim\Factory\AppFactory;
 use App\Container;
@@ -181,6 +186,24 @@ public function getHabitService(): HabitService
 }
 ```
 
+### Splitting a Growing Container
+
+When the Container exceeds the file line limit, move domain-grouped factory methods into a
+trait used by the Container (e.g. `ContainerIntegrationServices` holding the Twig, push
+notification, and cron-queue factories):
+
+```php
+class Container implements ContainerInterface
+{
+    use ContainerIntegrationServices;
+    // core factories stay here
+}
+```
+
+This is the sanctioned exception to the no-behavior-traits rule: the trait holds only
+stateless factory methods and has exactly one consumer — it exists purely to keep the
+Container file navigable.
+
 ### APP_ENV for Test Environment
 
 Disable external services (push notifications, third-party APIs) in test environment:
@@ -269,6 +292,28 @@ All errors follow a consistent JSON structure:
     "error": true,
     "message": "Validation failed",
     "details": ["name is required"]
+}
+```
+
+### ValidationException
+
+Services throw a `ValidationException` carrying a `field => message` map; controllers map it
+to a 422 response via `validationError()` with the map as `details`:
+
+```php
+class ValidationException extends \Exception
+{
+    /** @param array<string, string> $errors */
+    public function __construct(private array $errors, string $message = 'Validation failed')
+    {
+        parent::__construct($message);
+    }
+
+    /** @return array<string, string> */
+    public function getErrors(): array
+    {
+        return $this->errors;
+    }
 }
 ```
 
@@ -501,6 +546,29 @@ class AuthMiddleware implements MiddlewareInterface
 5. Store auth type in request attribute: `$request->withAttribute('auth_type', 'jwt')`
 6. Controllers read via `$this->getUserId($request)`
 
+### API Token Storage
+
+API tokens are prefixed opaque tokens, never stored in plain text:
+
+- Format: `<prefix>_<random>` (e.g. `thapi_` + `bin2hex(random_bytes(32))`)
+- Store only the SHA-256 hash (`token_hash` column); the raw token is shown ONCE at creation
+- Track `last_used_at` on each successful validation
+- Restrict regular users' tokens to an endpoint allowlist in a config class
+  (`ApiTokenConfig::ALLOWED_ENDPOINTS`, a `METHOD => [paths]` map checked by the middleware)
+
+### Machine Accounts
+
+For headless integrations, `POST /api/v1/auth/machine-account` provisions an account without
+OAuth. The `User.isMachine` flag grants that account's API token FULL access, bypassing the
+endpoint allowlist that restricts regular users' tokens. The middleware does one user lookup
+to check the flag.
+
+### Admin Token Dev Endpoint
+
+`POST /api/v1/auth/admin-token` mints a JWT for a given user when the request supplies
+`config['admin_token_password']` — a dev/testing convenience to skip the full OAuth flow.
+Document it as dev-only.
+
 ---
 
 ## CORS Middleware
@@ -531,6 +599,34 @@ class CorsMiddleware implements MiddlewareInterface
     }
 }
 ```
+
+---
+
+## Cron Endpoints
+
+Cron routes live OUTSIDE the AuthMiddleware group. Protect them with a password query
+parameter compared via `hash_equals()` against `config['cron_password']`; reject empty or
+missing passwords:
+
+```php
+private function validateCronPassword(ServerRequestInterface $request): bool
+{
+    $password = $request->getQueryParams()['password'] ?? '';
+    $expected = $this->container->getConfig()['cron_password'] ?? '';
+    return $password !== '' && $expected !== '' && hash_equals($expected, $password);
+}
+```
+
+### Queue + Drain Pattern
+
+Decouple slow side effects (push notifications, emails) from request latency: requests
+enqueue rows into a queue entity (e.g. `NotificationQueue`); a cron endpoint drains it:
+
+```
+GET /cron/notifications?password=...   →   {"processed": 12, "failed": 0, "cleaned": 3}
+```
+
+The drain method processes pending rows, marks failures, and cleans up old entries.
 
 ---
 
@@ -587,6 +683,24 @@ class OrmFactory
 ```
 
 `SyncTables` automatically creates and alters database tables to match entity annotations. No manual migrations needed during development.
+
+---
+
+## Logging
+
+Implements the central `Logger` rule from `PHP_RULES.md` as a file-based rotating logger:
+
+- Level filtering from config; daily files `app-YYYY-MM-DD.log`
+- `max_files` rotation (delete oldest beyond the cap), checked once per request
+- `LOCK_EX` append writes
+- Config keys: `logging => ['path' => ..., 'level' => ..., 'max_files' => ...]`
+
+### Domain Log Files
+
+Give a critical subsystem its own structured log file via a dedicated logger class
+(e.g. `NotificationLogger` writing `type=... recipients=... status=... reason=...` key=value
+lines). One file per subsystem makes monitoring and grepping trivial without wading through
+the general application log.
 
 ---
 
@@ -800,6 +914,22 @@ GET /api/v1/habits/week?offset=-1
     "message": "Invalid or expired token"
 }
 ```
+```
+
+---
+
+## Per-Topic Documentation
+
+Each cross-cutting concern gets one markdown doc in `docs/`, kept updated when the concern
+changes. Examples:
+
+```
+docs/
+├── TIMEZONE.md            # DATE handling, UTC-noon convention
+├── CRON.md                # Cron endpoints, queue drain, scheduling
+├── DEEPLINKS.md           # App deep-link URL schemes
+├── PHP_ERROR_OUTPUT.md    # Bootstrap error-output guard rationale
+└── TRANSLATIONS.md        # Localization workflow
 ```
 
 ---

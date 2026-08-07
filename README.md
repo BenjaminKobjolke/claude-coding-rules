@@ -20,6 +20,19 @@ For developing the plugin from a local clone, see [DEBUG.md](DEBUG.md).
 |-------|--------------|
 | `/coding-rules:apply` | Copies the applicable rules (common + language + project type + opted-in addons) into your project's `CLAUDE.md`. Rule blocks carry a `# Version`; re-running updates only stale blocks. |
 | `/coding-rules:enforce` | Audits your actual codebase against the rules and reports violations — no auto-fixing. |
+| `/coding-rules:sync-codex` | Installs the skills into OpenAI Codex (`~/.codex/skills/`) so the same rules work there. |
+
+## Using with OpenAI Codex
+
+Codex has no plugin marketplace — skills are folders in `~/.codex/skills/`. Either run
+`/coding-rules:sync-codex` from Claude Code, or clone this repo and run:
+
+```bash
+python plugins/coding-rules/skills/sync-codex/sync_to_codex.py
+```
+
+This installs `coding-rules-apply` and `coding-rules-enforce` as Codex skills with the
+rule files bundled. Re-run after updating the repo.
 
 ## Structure
 
