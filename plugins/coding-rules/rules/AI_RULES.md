@@ -1,5 +1,5 @@
 # Version
-3
+4
 
 Increase this version number whenever this rule file changes.
 
@@ -60,7 +60,8 @@ implement
 
 post-implementation DRY audit
   codex enabled:
-    codex exec --dangerously-bypass-approvals-and-sandbox "FULL PATH TO PLAN - Can you check the plan for DRY opportunities and if you find any, apply them to the original plan file. Add a summary at the end what you changed and why."
+    codex exec --dangerously-bypass-approvals-and-sandbox "Check the files changed in this session (staged, unstaged, and untracked — use git status and git diff) for DRY opportunities. Do NOT modify any code. Write your suggestions to claude-plans/post-implementation-check.md, overwriting the file if it already exists. Include for each finding the affected files and a short rationale."
+    then read claude-plans/post-implementation-check.md and discuss/apply the findings with the user
   codex disabled:
     /dry:check
 
