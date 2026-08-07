@@ -1,5 +1,5 @@
 # Version
-2
+3
 
 Increase this version number whenever this rule file changes.
 
@@ -17,6 +17,18 @@ skill rather than reimplementing its behavior.
 
 ---
 
+## Codex toggle
+
+Some of the workflow steps below can be delegated to the Codex CLI. Whether a
+project uses Codex is controlled by a marker near the top of `CODING_RULES.md`:
+
+- `<!-- codex: enabled -->` — run the `codex exec` commands below.
+- `<!-- codex: disabled -->` or no marker — do NOT run Codex; perform the same
+  checks yourself via the listed fallback skills.
+
+The marker is managed by `/coding-rules:codex on|off|status` (or set during
+`/coding-rules:apply`). Do not flip it yourself without the user asking.
+
 ## Feature / Change Workflow
 
 After a plan is proposed and the user approves it, follow this chain. The DRY
@@ -28,11 +40,17 @@ path to both plan-DRY commands.
 ```
 plan approved
 
-run
-codex exec --dangerously-bypass-approvals-and-sandbox "FULL PATH TO PLAN - Can you check the plan for DRY opportunities and if you find any, apply them to the original plan file. Add a summary at the end what you changed and why."
+plan DRY check
+  codex enabled:
+    codex exec --dangerously-bypass-approvals-and-sandbox "FULL PATH TO PLAN - Can you check the plan for DRY opportunities and if you find any, apply them to the original plan file. Add a summary at the end what you changed and why."
+  codex disabled:
+    /plan:dry <plan-file>
 
-run
-codex exec --dangerously-bypass-approvals-and-sandbox "FULL PATH TO PLAN $convention-check - If you want to make any changes, apply them to the original plan file. Add a summary at the end what you changed and why."
+plan convention check
+  codex enabled:
+    codex exec --dangerously-bypass-approvals-and-sandbox "FULL PATH TO PLAN $convention-check - If you want to make any changes, apply them to the original plan file. Add a summary at the end what you changed and why."
+  codex disabled:
+    /convention:check — apply findings to the plan file
 
 /plan:dry-checked    reload the DRY and convention adjusted plan
 
@@ -40,8 +58,11 @@ restate Definition-of-Done aloud
 
 implement
 
-run post-implementation DRY audit
-codex exec --dangerously-bypass-approvals-and-sandbox "FULL PATH TO PLAN - Can you check the plan for DRY opportunities and if you find any, apply them to the original plan file. Add a summary at the end what you changed and why."
+post-implementation DRY audit
+  codex enabled:
+    codex exec --dangerously-bypass-approvals-and-sandbox "FULL PATH TO PLAN - Can you check the plan for DRY opportunities and if you find any, apply them to the original plan file. Add a summary at the end what you changed and why."
+  codex disabled:
+    /dry:check
 
 Post-Feature Verification + Post-Implementation Code Analysis (project-specific, below)
 

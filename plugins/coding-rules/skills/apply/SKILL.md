@@ -65,6 +65,25 @@ Do not inline rules back into this file and do not use `@import` for
 ```
 
 <!-- claude-code-only:start -->
+## Phase D2 — Codex toggle (idempotent)
+
+The AI workflow rules can delegate DRY/convention checks to the Codex CLI (see
+the Codex toggle section in `AI_RULES.md`). State is a marker near the top of
+`CODING_RULES.md`: `<!-- codex: enabled -->` or `<!-- codex: disabled -->`.
+
+- If `CODING_RULES.md` already contains a `<!-- codex: ... -->` marker, keep it
+  and do not re-ask.
+- Otherwise ask the user: "Use Codex for the DRY and convention checks in this
+  project? (If no, Claude performs those checks itself.)"
+  - Yes → follow the `on` steps of `${CLAUDE_PLUGIN_ROOT}/skills/codex/SKILL.md`
+    (insert `<!-- codex: enabled -->` after the managed-by comment, verify
+    `codex --version`, and merge `"Bash(codex exec:*)"` into
+    `<project>/.claude/settings.local.json` `permissions.allow` per that skill's
+    merge rules).
+  - No → insert `<!-- codex: disabled -->` after the managed-by comment.
+<!-- claude-code-only:end -->
+
+<!-- claude-code-only:start -->
 ## Phase E — Install the reminder hooks (idempotent)
 
 Install hooks that remind Claude to read `CODING_RULES.md` when the user accepts a plan (PostToolUse/ExitPlanMode) and on the first code edit of any session (PreToolUse/Edit — per-session marker file, silent afterwards). One script serves both events.
