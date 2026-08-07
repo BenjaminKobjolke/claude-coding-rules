@@ -32,7 +32,7 @@ python plugins/coding-rules/skills/sync-codex/sync_to_codex.py
 ```
 
 This installs `coding-rules-apply` and `coding-rules-enforce` as Codex skills with the
-rule files bundled. Re-run after updating the repo.
+rule files bundled. Re-run after updating the repo. Details: [docs/CODEX.md](docs/CODEX.md).
 
 ## Structure
 
