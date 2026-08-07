@@ -15,13 +15,15 @@ the plugin installs at user scope.
 ## Dev loop
 
 1. Edit rule files (`plugins/coding-rules/rules/`) or skills (`plugins/coding-rules/skills/`)
-2. Pull the changes into the installed copy:
+2. Bump `version` in `plugins/coding-rules/.claude-plugin/plugin.json` — `claude plugin update`
+   skips re-copying when the version is unchanged
+3. Pull the changes into the installed copy:
 
    ```
    claude plugin update coding-rules@claude-coding-rules
    ```
 
-3. Start a new Claude Code session so the skills reload
+4. Start a new Claude Code session so the skills reload
 
 ## Verify install
 

@@ -1,5 +1,5 @@
 {
     "name": "coding-rules",
     "description": "Versioned coding rules for many languages and project types, with skills to apply them to CLAUDE.md and audit the codebase for violations.",
-    "version": "1.0.0"
+    "version": "1.0.1"
 }
