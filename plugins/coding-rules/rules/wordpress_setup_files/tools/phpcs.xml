@@ -1,0 +1,37 @@
+<?xml version="1.0"?>
+<ruleset name="Project">
+    <description>WordPress Coding Standards for this project.</description>
+
+    <!-- Scan these paths. Adjust per project (theme dir, plugin dir, src). -->
+    <file>.</file>
+
+    <!-- Skip vendored / generated code. -->
+    <exclude-pattern>*/vendor/*</exclude-pattern>
+    <exclude-pattern>*/node_modules/*</exclude-pattern>
+    <exclude-pattern>*/tests/*</exclude-pattern>
+
+    <!-- Only PHP. -->
+    <arg name="extensions" value="php"/>
+    <arg name="colors"/>
+    <arg value="sp"/><!-- show sniff codes + progress -->
+
+    <!-- WordPress Coding Standards (from wp-coding-standards/wpcs). -->
+    <rule ref="WordPress"/>
+
+    <!-- Enforce a text-domain and prefix so the Security/i18n sniffs are useful.
+         Replace the placeholders per project. -->
+    <rule ref="WordPress.WP.I18n">
+        <properties>
+            <property name="text_domain" type="array" value="acme"/>
+        </properties>
+    </rule>
+    <rule ref="WordPress.NamingConventions.PrefixAllGlobals">
+        <properties>
+            <property name="prefixes" type="array" value="acme"/>
+        </properties>
+    </rule>
+
+    <!-- PHP version target for PHPCompatibilityWP. Keep in sync with Requires PHP. -->
+    <config name="testVersion" value="8.2-"/>
+    <rule ref="PHPCompatibilityWP"/>
+</ruleset>

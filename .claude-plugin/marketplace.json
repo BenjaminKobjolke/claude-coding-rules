@@ -1,0 +1,17 @@
+{
+    "name": "claude-coding-rules",
+    "owner": {
+        "name": "Benjamin Kobjolke",
+        "url": "https://github.com/BenjaminKobjolke"
+    },
+    "plugins": [
+        {
+            "name": "coding-rules",
+            "source": "./plugins/coding-rules",
+            "description": "Versioned coding rules for many languages (PHP, Python, C#, Flutter, Svelte, SCSS, Arduino, AutoHotkey, Unity, WordPress) plus project types (REST API, Frontend SPA). Skills to apply the rules to a project's CLAUDE.md and to audit the codebase for violations.",
+            "author": { "name": "Benjamin Kobjolke" },
+            "repository": "https://github.com/BenjaminKobjolke/claude-coding-rules",
+            "license": "MIT"
+        }
+    ]
+}
