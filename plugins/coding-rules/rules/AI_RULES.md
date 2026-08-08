@@ -1,5 +1,5 @@
 # Version
-5
+6
 
 Increase this version number whenever this rule file changes.
 
@@ -64,6 +64,9 @@ implement
   <plan-file-path-without-.md>-changed-files.md
   (e.g. claude-plans/my-feature-changed-files.md). The plan file is unique per
   session, so concurrent sessions never collide.
+  Include only source-code files. Exclude documentation and other non-code
+  files (`.md`, plain-text docs, the plan file itself) — the DRY audit only
+  looks at code.
 
 post-implementation DRY audit — scope is ONLY the changed-files file above
   codex enabled:
