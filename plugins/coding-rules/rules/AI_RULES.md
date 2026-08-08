@@ -1,5 +1,5 @@
 # Version
-6
+7
 
 Increase this version number whenever this rule file changes.
 
@@ -42,13 +42,13 @@ plan approved
 
 plan DRY check
   codex enabled:
-    codex exec --dangerously-bypass-approvals-and-sandbox "FULL PATH TO PLAN - Can you check the plan for DRY opportunities and if you find any, apply them to the original plan file. Add a summary at the end called SUMMARY DRY with what you changed and why."
+    codex exec --dangerously-bypass-approvals-and-sandbox "FULL PATH TO PLAN - Can you check the plan for DRY opportunities and if you find any, apply them to the original plan file. Always add a summary at the end called SUMMARY DRY — if you made changes, describe what and why; if you found nothing, write 'No DRY opportunities found.'"
   codex disabled:
     /plan:dry <plan-file>
 
 plan convention check
   codex enabled:
-    codex exec --dangerously-bypass-approvals-and-sandbox "FULL PATH TO PLAN $convention-check - If you want to make any changes, apply them to the original plan file. Add a summary at the end called SUMMARY CONVENTION CHECK with what you changed and why."
+    codex exec --dangerously-bypass-approvals-and-sandbox "FULL PATH TO PLAN $convention-check - If you want to make any changes, apply them to the original plan file. Always add a summary at the end called SUMMARY CONVENTION CHECK — if you made changes, describe what and why; if you found nothing, write 'No convention issues found.'"
   codex disabled:
     /convention:check — apply findings to the plan file
 
@@ -70,7 +70,7 @@ implement
 
 post-implementation DRY audit — scope is ONLY the changed-files file above
   codex enabled:
-    codex exec --dangerously-bypass-approvals-and-sandbox "Read FULL PATH TO CHANGED-FILES FILE and check ONLY the files listed there for DRY opportunities. Do not use git status or git diff to widen the scope — other sessions may have concurrent uncommitted changes. Do NOT modify any code. Write your suggestions to claude-plans/post-implementation-check.md, overwriting the file if it already exists. Include for each finding the affected files and a short rationale."
+    codex exec --dangerously-bypass-approvals-and-sandbox "Read FULL PATH TO CHANGED-FILES FILE and check ONLY the files listed there for DRY opportunities. Do not use git status or git diff to widen the scope — other sessions may have concurrent uncommitted changes. Do NOT modify any code. Write your suggestions to claude-plans/post-implementation-check.md, overwriting the file if it already exists. Include for each finding the affected files and a short rationale. Always write the file, even if you found nothing — in that case write a SUMMARY block stating 'No DRY opportunities found.'"
     then read claude-plans/post-implementation-check.md and discuss/apply the findings with the user
   codex disabled:
     /dry:check <files from the changed-files file, as pathspec>

@@ -1,5 +1,5 @@
 # Version
-2
+3
 
 Increase this version number whenever this rule file changes.
 
@@ -44,6 +44,11 @@ orient before grep and to spot god classes.
    - `--directed` is **required**. Without it the graph is undirected and total edge count blends
      incoming and outgoing — you cannot tell a healthy shared base (high fan-**in**) from a god
      class (high fan-**out**).
+   - **Scoping does not exclude vendored code committed *inside* `<code-dir>`** (e.g.
+     `application/libs/`, `src/vendor/`, a bundled third-party SDK) — those aren't
+     gitignored, so graphify scans them and the graph drowns in someone else's classes
+     instead of yours. Check `<code-dir>` for such folders before the first build; if
+     any exist, add a `.graphifyignore` there first (see "In-tree vendored code" below).
 4. **Relocate the `CLAUDE.md` section** the installer wrote: remove it from `CLAUDE.md` and
    instead add this file's `# Version` block and document title followed by the "Using" +
    "Refreshing" rules below to the project's `CODING_RULES.md`, replacing generic `.`/`src`
@@ -95,3 +100,27 @@ when copying the following sections.
   full UNDIRECTED graph into `<code-dir>/graphify-out/` (wrong location), desyncing the live
   graph. If that stray graph appears, delete `<code-dir>/graphify-out/graph.json` (keep `cache/`).
 - Verify after rebuild: `graph.json` has `directed: true` and lives in root `graphify-out/`.
+
+### In-tree vendored code — exclude it, scoping alone won't
+
+`--directed`-scoping the build to `<code-dir>` keeps external `vendor/`/`node_modules/` out
+automatically, but a **committed** third-party library living *inside* `<code-dir>` (a bundled
+SDK, a copied library folder) is not gitignored, so graphify scans it like first-party code.
+Symptom: god-nodes / oversized communities in `GRAPH_REPORT.md` whose class names belong to a
+library, not the app (e.g. hundreds of `Facebook*`/`GraphNode*` nodes from an in-tree Facebook
+SDK).
+
+Fix once per project:
+
+1. Spot the vendored folder(s) under `<code-dir>` (e.g. `application/libs/`).
+2. Drop a `.graphifyignore` at the scan root (gitignore syntax, honored by default):
+   ```
+   # Vendored / third-party code — not our architecture, noise in the graph
+   libs/
+   ```
+3. Rebuild. A narrower corpus is a *smaller* graph, which trips the shrink guard (#479) — delete
+   the stale `graphify-out/graph.json` first (keep `graphify-out/cache/`), then re-run
+   `/graphify <code-dir> --directed`.
+4. Verify: grep the vendored library's distinctive class name in the new `graph.json` — it
+   should return only first-party code that *uses* the library (e.g. your own `FacebookManager`),
+   never the library's own classes.
