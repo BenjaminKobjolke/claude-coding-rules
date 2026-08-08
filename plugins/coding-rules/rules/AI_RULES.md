@@ -1,5 +1,5 @@
 # Version
-4
+5
 
 Increase this version number whenever this rule file changes.
 
@@ -42,13 +42,13 @@ plan approved
 
 plan DRY check
   codex enabled:
-    codex exec --dangerously-bypass-approvals-and-sandbox "FULL PATH TO PLAN - Can you check the plan for DRY opportunities and if you find any, apply them to the original plan file. Add a summary at the end what you changed and why."
+    codex exec --dangerously-bypass-approvals-and-sandbox "FULL PATH TO PLAN - Can you check the plan for DRY opportunities and if you find any, apply them to the original plan file. Add a summary at the end called SUMMARY DRY with what you changed and why."
   codex disabled:
     /plan:dry <plan-file>
 
 plan convention check
   codex enabled:
-    codex exec --dangerously-bypass-approvals-and-sandbox "FULL PATH TO PLAN $convention-check - If you want to make any changes, apply them to the original plan file. Add a summary at the end what you changed and why."
+    codex exec --dangerously-bypass-approvals-and-sandbox "FULL PATH TO PLAN $convention-check - If you want to make any changes, apply them to the original plan file. Add a summary at the end called SUMMARY CONVENTION CHECK with what you changed and why."
   codex disabled:
     /convention:check — apply findings to the plan file
 
@@ -57,13 +57,20 @@ plan convention check
 restate Definition-of-Done aloud
 
 implement
+  While implementing, keep the list of every file you created or modified in THIS
+  session — you know it from your own edits; do NOT derive it from git (other
+  sessions may have concurrent uncommitted changes). After implementing, write the
+  list (one path per line) to a changed-files file next to the plan, named after it:
+  <plan-file-path-without-.md>-changed-files.md
+  (e.g. claude-plans/my-feature-changed-files.md). The plan file is unique per
+  session, so concurrent sessions never collide.
 
-post-implementation DRY audit
+post-implementation DRY audit — scope is ONLY the changed-files file above
   codex enabled:
-    codex exec --dangerously-bypass-approvals-and-sandbox "Check the files changed in this session (staged, unstaged, and untracked — use git status and git diff) for DRY opportunities. Do NOT modify any code. Write your suggestions to claude-plans/post-implementation-check.md, overwriting the file if it already exists. Include for each finding the affected files and a short rationale."
+    codex exec --dangerously-bypass-approvals-and-sandbox "Read FULL PATH TO CHANGED-FILES FILE and check ONLY the files listed there for DRY opportunities. Do not use git status or git diff to widen the scope — other sessions may have concurrent uncommitted changes. Do NOT modify any code. Write your suggestions to claude-plans/post-implementation-check.md, overwriting the file if it already exists. Include for each finding the affected files and a short rationale."
     then read claude-plans/post-implementation-check.md and discuss/apply the findings with the user
   codex disabled:
-    /dry:check
+    /dry:check <files from the changed-files file, as pathspec>
 
 Post-Feature Verification + Post-Implementation Code Analysis (project-specific, below)
 
@@ -89,16 +96,16 @@ Before the first edit, state in chat what "done" means for THIS change:
 - [ ] Scope: <one line — what changes, what does not>
 - [ ] Reuse: <existing function/component this builds on, with path>
 - [ ] DRY gate cleared (above)
-- [ ] `/dry:check` clean
+- [ ] `/dry:check <session changed-files>` clean (scoped to the changed-files file, never bare)
 - [ ] `/verify:after-change` green (tests + analysis)
 
 ### Post-implementation DRY audit — paste-in template
 
-Run `/dry:check`, then paste and fill:
+Run `/dry:check` scoped to the session's changed-files file, then paste and fill:
 
 ```
 DRY audit — <change name>
-Changed files:     <list>
+Changed files:     <list from the changed-files file, not git>
 Duplication found: <none | describe>
 Consolidated into: <shared fn/module + path | n/a>
 Convention reused: <name + path>
