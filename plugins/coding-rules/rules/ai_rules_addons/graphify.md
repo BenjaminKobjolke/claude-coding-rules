@@ -1,5 +1,5 @@
 # Version
-3
+5
 
 Increase this version number whenever this rule file changes.
 
@@ -39,8 +39,15 @@ orient before grep and to spot god classes.
    ```
    /graphify <code-dir> --directed        # e.g. src/  app/  lib/  internal/
    ```
-   - `<code-dir>` = the single folder with the code. Scoping keeps `vendor/`, `node_modules/`,
+   - `<code-dir>` = the folder(s) with the code. Scoping keeps `vendor/`, `node_modules/`,
      build output, and tests out of the graph. A repo-root build drowns the signal in deps.
+   - **If first-party code lives in MORE than one top-level dir (e.g. `application/` +
+     `framework/`, `src/` + `lib/`), build ALL of them as one multi-path merged graph:**
+     `/graphify application/ framework/ --directed`. Scoping to only one dir makes every class
+     in the others invisible to every query — the graph then reports "not found" for code that
+     exists, and the miss is indistinguishable from absence. (Real incident: a query for string
+     sanitization helpers returned 61 irrelevant nodes because `FRK_StringHelper` lived in the
+     unscanned `framework/` dir.) List the excluded siblings consciously, never by omission.
    - `--directed` is **required**. Without it the graph is undirected and total edge count blends
      incoming and outgoing — you cannot tell a healthy shared base (high fan-**in**) from a god
      class (high fan-**out**).
@@ -100,6 +107,9 @@ when copying the following sections.
   full UNDIRECTED graph into `<code-dir>/graphify-out/` (wrong location), desyncing the live
   graph. If that stray graph appears, delete `<code-dir>/graphify-out/graph.json` (keep `cache/`).
 - Verify after rebuild: `graph.json` has `directed: true` and lives in root `graphify-out/`.
+  For a **multi-path merge**, also grep `graph.json` for a node-ID prefix belonging to a second
+  scanned dir (e.g. `framework_`) to prove that dir actually landed — `directed: true` passes even
+  if one dir silently dropped out of the merge.
 
 ### In-tree vendored code — exclude it, scoping alone won't
 
@@ -112,10 +122,13 @@ SDK).
 
 Fix once per project:
 
-1. Spot the vendored folder(s) under `<code-dir>` (e.g. `application/libs/`).
+1. Spot the vendored folder(s) under `<code-dir>` (e.g. `application/libs/`). Committed
+   **asset/sprite dirs** are the same kind of noise — bundled UI images (jQuery-UI/colorbox
+   sprites, e.g. `extensions/backend/assets/images/`) aren't code but graphify still scans them;
+   exclude them the same way.
 2. Drop a `.graphifyignore` at the scan root (gitignore syntax, honored by default):
    ```
-   # Vendored / third-party code — not our architecture, noise in the graph
+   # Vendored / third-party code + bundled assets — not our architecture, noise in the graph
    libs/
    ```
 3. Rebuild. A narrower corpus is a *smaller* graph, which trips the shrink guard (#479) — delete
