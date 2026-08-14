@@ -72,7 +72,11 @@ the Codex toggle section in `AI_RULES.md`). State is a marker near the top of
 `CODING_RULES.md`: `<!-- codex: enabled -->` or `<!-- codex: disabled -->`.
 
 - If `CODING_RULES.md` already contains a `<!-- codex: ... -->` marker, keep it
-  and do not re-ask.
+  and do not re-ask. If the marker is `enabled`, still run the permission merge
+  from the `on` steps of `${CLAUDE_PLUGIN_ROOT}/skills/codex/SKILL.md`
+  (merge `"Bash(codex exec:*)"` and `"PowerShell(codex exec:*)"` into
+  `<project>/.claude/settings.local.json` `permissions.allow`) — the merge is
+  idempotent and picks up permissions added in newer plugin versions.
 - Otherwise ask the user: "Use Codex for the DRY and convention checks in this
   project? (If no, Claude performs those checks itself.)"
   - Yes → follow the `on` steps of `${CLAUDE_PLUGIN_ROOT}/skills/codex/SKILL.md`
