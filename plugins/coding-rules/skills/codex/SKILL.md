@@ -1,5 +1,5 @@
 ---
-description: Enable or disable Codex CLI delegation for this project's coding-rules workflow (plan DRY check, convention check, post-implementation DRY audit). Sets the codex marker in CODING_RULES.md and, on enable, adds the Bash(codex exec:*) permission so codex runs without prompts. Use for "enable codex", "disable codex", "codex status".
+description: Enable or disable Codex CLI delegation for this project's coding-rules workflow (plan DRY check, convention check, post-implementation DRY audit). Sets the codex marker in CODING_RULES.md and, on enable, adds the Bash(codex exec:*) and PowerShell(codex exec:*) permissions so codex runs without prompts. Use for "enable codex", "disable codex", "codex status".
 ---
 
 # Codex Toggle
@@ -38,7 +38,8 @@ user whether to change it.
    user that codex is not on PATH but keep the marker enabled.
 
 <!-- claude-code-only:start -->
-4. Add the permission rule so `codex exec` runs without approval prompts.
+4. Add the permission rules so `codex exec` runs without approval prompts
+   (on Windows, Claude Code may run it via the PowerShell tool instead of Bash).
    Claude Code's permission classifier otherwise blocks
    `codex exec --dangerously-bypass-approvals-and-sandbox`. Merge into
    `<project>/.claude/settings.local.json`:
@@ -47,7 +48,8 @@ user whether to change it.
 {
   "permissions": {
     "allow": [
-      "Bash(codex exec:*)"
+      "Bash(codex exec:*)",
+      "PowerShell(codex exec:*)"
     ]
   }
 }
@@ -57,11 +59,12 @@ Merge rules:
 
 - If the file does not exist, create it with exactly this content.
 - If it exists, parse it first. If it is not valid JSON, stop and ask the user —
-  never overwrite. Otherwise add missing keys and append `"Bash(codex exec:*)"`
-  to the existing `permissions.allow` array, preserving all other keys and
-  entries.
-- Idempotency: if `"Bash(codex exec:*)"` is already in the allow list, change
-  nothing.
+  never overwrite. Otherwise add missing keys and append each of
+  `"Bash(codex exec:*)"` and `"PowerShell(codex exec:*)"` that is not already
+  present to the existing `permissions.allow` array, preserving all other keys
+  and entries.
+- Idempotency: entries are checked independently — if both are already in the
+  allow list, change nothing.
 <!-- claude-code-only:end -->
 
 ## off
@@ -70,15 +73,15 @@ Set the marker to `<!-- codex: disabled -->` (same placement rules as `on`).
 The workflow steps then fall back to `/plan:dry`, `/convention:check`, and
 `/dry:check` run by the agent itself.
 
-Leave any `"Bash(codex exec:*)"` permission entry in
-`.claude/settings.local.json` untouched — it is harmless while disabled and
-saves a step on re-enable. Mention this to the user.
+Leave any `"Bash(codex exec:*)"` / `"PowerShell(codex exec:*)"` permission
+entries in `.claude/settings.local.json` untouched — they are harmless while
+disabled and save a step on re-enable. Mention this to the user.
 
 ## status
 
 Report:
 
 - Marker state in `CODING_RULES.md` (enabled / disabled / no marker = disabled).
-- Whether `"Bash(codex exec:*)"` is present in
-  `.claude/settings.local.json` `permissions.allow`.
+- Whether `"Bash(codex exec:*)"` and `"PowerShell(codex exec:*)"` are present
+  in `.claude/settings.local.json` `permissions.allow` (report each).
 - Whether `codex --version` succeeds.

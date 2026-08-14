@@ -77,7 +77,8 @@ the Codex toggle section in `AI_RULES.md`). State is a marker near the top of
   project? (If no, Claude performs those checks itself.)"
   - Yes → follow the `on` steps of `${CLAUDE_PLUGIN_ROOT}/skills/codex/SKILL.md`
     (insert `<!-- codex: enabled -->` after the managed-by comment, verify
-    `codex --version`, and merge `"Bash(codex exec:*)"` into
+    `codex --version`, and merge `"Bash(codex exec:*)"` and
+    `"PowerShell(codex exec:*)"` into
     `<project>/.claude/settings.local.json` `permissions.allow` per that skill's
     merge rules).
   - No → insert `<!-- codex: disabled -->` after the managed-by comment.
