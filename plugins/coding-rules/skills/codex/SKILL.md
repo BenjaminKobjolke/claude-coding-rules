@@ -1,5 +1,5 @@
 ---
-description: Enable or disable Codex CLI delegation for this project's coding-rules workflow (plan DRY check, convention check, post-implementation DRY audit). Sets the codex marker in CODING_RULES.md and, on enable, adds the Bash(codex exec:*) and PowerShell(codex exec:*) permissions so codex runs without prompts. Use for "enable codex", "disable codex", "codex status".
+description: Enable or disable Codex CLI delegation for this project's coding-rules workflow (plan DRY check, convention check, post-implementation DRY audit). Sets the codex marker in CODING_RULES.md and, on enable, adds the Bash(codex exec:*) and PowerShell(codex exec:*) permissions so codex runs without prompts. Use for "enable codex", "disable codex", "codex status", "codex test" / "test codex" (live smoke test of the permissions).
 ---
 
 # Codex Toggle
@@ -23,8 +23,8 @@ or
 
 No marker means disabled.
 
-Argument: `on`, `off`, or `status`. No argument → report status, then ask the
-user whether to change it.
+Argument: `on`, `off`, `status`, or `test`. No argument → report status, then
+ask the user whether to change it.
 
 ## on
 
@@ -85,3 +85,34 @@ Report:
 - Whether `"Bash(codex exec:*)"` and `"PowerShell(codex exec:*)"` are present
   in `.claude/settings.local.json` `permissions.allow` (report each).
 - Whether `codex --version` succeeds.
+
+## test
+
+Runs the `status` static checks, then a live smoke test that catches what
+`status` cannot: the permission classifier blocking the actual `codex exec`
+call.
+
+1. Static checks — same three items as `status` above.
+
+<!-- claude-code-only:start -->
+2. Live check. From the project directory run:
+
+   ```
+   codex exec --dangerously-bypass-approvals-and-sandbox "Reply with exactly: CODEX_OK"
+   ```
+
+   - **Pass**: the command ran without a permission prompt and the output
+     contains `CODEX_OK`.
+   - **Permission prompt appeared or the call was denied**: that IS the
+     failure this test exists for. Report which permission entry is missing
+     for the shell tool that was used (`Bash(codex exec:*)` or
+     `PowerShell(codex exec:*)`) and offer to run the permission-merge step
+     from `on` (step 4) to fix it.
+   - **Codex CLI itself errored** (not installed, not logged in, network):
+     report that separately — it is a codex problem, not a permissions
+     problem.
+<!-- claude-code-only:end -->
+
+3. Report: one pass/fail line per check, with a one-line fix hint per
+   failure — `run /coding-rules:codex on` for marker or permission failures,
+   install / `codex login` for CLI failures.
