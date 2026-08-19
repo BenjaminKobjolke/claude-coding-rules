@@ -99,6 +99,20 @@ Identify corresponding copied blocks by the rule document title that follows the
 <!-- Managed by /coding-rules:apply — do not edit rule blocks by hand -->
 ```
 
+### Tailored blocks and user-authored sections
+
+- When you tailor a copied rule block to the project (trim inapplicable sections,
+  substitute real paths/dirs, apply an addon's paste-form), insert `<!-- tailored -->`
+  on its own line directly after the block's title heading. `apply.py` never
+  auto-overwrites a tailored block: a newer source version is reported as
+  `tailored-stale` in `needs_user_decision`, and you hand-merge the source changes
+  into the tailored copy (then bump the block's version to match the source).
+- User-authored top-level sections after the last managed block (project deviations,
+  project-specific rules, …) are preserved by `apply.py` when a block is replaced —
+  any heading the source doc doesn't contain starts preserved content, reported per
+  rule under `preserved`. Verify preserved titles look intentional, not stale rule
+  leftovers.
+
 ## Phase D — Pointer block in CLAUDE.md
 
 Merge the following pointer block into the project's `CLAUDE.md` using the same version rules as Phase C (matched by the title `# Coding Rules (Pointer)`). Insert it at the top of `CLAUDE.md` when absent; create `CLAUDE.md` if the project has none. Copy it verbatim:

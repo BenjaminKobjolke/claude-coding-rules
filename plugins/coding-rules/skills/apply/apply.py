@@ -122,6 +122,69 @@ def find_title(block_lines):
     return None
 
 
+def parse_block_version(block_text):
+    """Version number of a '# Version' block: the first line matching ^\\d+$
+    after the header, skipping blank lines (historical blocks wrote the number
+    with a blank line in between). None if other content comes first."""
+    lines = block_text.splitlines()
+    it = iter(lines)
+    for line in it:
+        if line.strip() == "# Version":
+            break
+    for line in it:
+        stripped = line.strip()
+        if not stripped:
+            continue
+        return int(stripped) if stripped.isdigit() else None
+    return None
+
+
+def block_is_tailored(block_text):
+    """True if the block carries a non-fenced '<!-- tailored -->' line — a
+    project-tailored copy apply.py must never auto-overwrite."""
+    in_fence = False
+    for line in block_text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("```"):
+            in_fence = not in_fence
+            continue
+        if not in_fence and stripped == "<!-- tailored -->":
+            return True
+    return False
+
+
+def source_headings(src_text):
+    """All non-fenced top-level headings of a source doc, incl. '# Version'.
+    Sources may legitimately have more than one (FLUTTER, PYTHON)."""
+    heads = {"# Version"}
+    in_fence = False
+    for line in src_text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("```"):
+            in_fence = not in_fence
+            continue
+        if not in_fence and stripped.startswith("# "):
+            heads.add(stripped)
+    return heads
+
+
+def split_orphan_tail(block_text, src_text):
+    """Split an existing block into (managed_text, orphan_text) at the first
+    non-fenced top-level heading the source doc doesn't contain. The orphan is
+    user-authored content that must survive a block replacement."""
+    known = source_headings(src_text)
+    lines = block_text.splitlines(keepends=True)
+    in_fence = False
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if stripped.startswith("```"):
+            in_fence = not in_fence
+            continue
+        if not in_fence and stripped.startswith("# ") and stripped not in known:
+            return "".join(lines[:i]), "".join(lines[i:])
+    return block_text, ""
+
+
 def parse_source_version_title(text):
     lines = text.splitlines()
     if not lines or lines[0].strip() != "# Version":
@@ -173,11 +236,7 @@ def process_rules(blocks, plugin_root, requested, manifest_rules, versions):
             # No manifest entry yet (pre-manifest project) -- trust the version
             # already written in the existing block instead of treating it as
             # absent, so an up-to-date block isn't blindly rewritten.
-            existing_lines = existing["text"].splitlines()
-            try:
-                applied = int(existing_lines[1].strip())
-            except (IndexError, ValueError):
-                applied = None
+            applied = parse_block_version(existing["text"])
         if applied is not None and applied > version:
             new_manifest_rules[rel] = applied  # keep the conflicting version on record
             report.append({"rule": rel, "status": "conflict",
@@ -187,16 +246,32 @@ def process_rules(blocks, plugin_root, requested, manifest_rules, versions):
             new_manifest_rules[rel] = version  # already applied -- still record it
             report.append({"rule": rel, "status": "unchanged", "version": version})
             continue
+        if existing is not None and block_is_tailored(existing["text"]):
+            # Project-tailored copy: stale, but a verbatim overwrite would
+            # destroy the tailoring -- hand-merge is a judgment call.
+            if applied is not None:
+                new_manifest_rules[rel] = applied
+            report.append({"rule": rel, "status": "tailored-stale",
+                            "detail": f"tailored block at version {applied}, source at {version} — hand-merge required"})
+            continue
         new_text = src_text if src_text.endswith("\n") else src_text + "\n"
+        item = {"rule": rel, "status": "updated", "version": version}
         if existing is not None:
+            _, orphan = split_orphan_tail(existing["text"], src_text)
             existing["text"] = new_text
             existing["title"] = title
+            if orphan:
+                orphan_title = next(
+                    (l.strip() for l in orphan.splitlines() if l.strip().startswith("# ")), None)
+                blocks.insert(blocks.index(existing) + 1,
+                              {"title": orphan_title, "text": orphan})
+                item["preserved"] = [orphan_title]
         else:
             new_block = {"title": title, "text": new_text}
             blocks.append(new_block)
             blocks_by_title[title] = new_block
         new_manifest_rules[rel] = version
-        report.append({"rule": rel, "status": "updated", "version": version})
+        report.append(item)
     return blocks, new_manifest_rules, report
 
 
@@ -210,10 +285,9 @@ def reconcile_manifest(blocks, manifest_rules, title_to_rel):
         rel = title_to_rel.get(b["title"])
         if rel is None or rel in new_manifest_rules:
             continue
-        try:
-            new_manifest_rules[rel] = int(b["text"].splitlines()[1].strip())
-        except (IndexError, ValueError):
-            continue
+        ver = parse_block_version(b["text"])
+        if ver is not None:
+            new_manifest_rules[rel] = ver
     return new_manifest_rules
 
 
@@ -299,9 +373,9 @@ def migrate_legacy(text, title_to_rel):
             result_lines.extend(lines[b["start"]:b["end"]])
             continue
         rel = title_to_rel.get(b["title"])
-        if rel:
-            block_lines = lines[b["start"]:b["end"]]
-            migrated[rel] = int(block_lines[1].strip())
+        ver = parse_block_version(b["text"]) if rel else None
+        if rel and ver is not None:
+            migrated[rel] = ver
             continue  # dropped -- moves into CODING_RULES.md via process_rules
         unrecognized.append(b["title"] or "(untitled block)")
         result_lines.extend(lines[b["start"]:b["end"]])
@@ -317,10 +391,7 @@ def apply_pointer(claude_text, manifest_pointer_version, source_version):
         # No manifest entry yet (pre-manifest project) -- trust the version
         # already in the existing pointer block instead of treating it as
         # absent, so an up-to-date pointer isn't rewritten for nothing.
-        try:
-            manifest_pointer_version = int(existing["text"].splitlines()[1].strip())
-        except (IndexError, ValueError):
-            pass
+        manifest_pointer_version = parse_block_version(existing["text"])
 
     if existing is not None and manifest_pointer_version is not None and manifest_pointer_version > source_version:
         return claude_text, manifest_pointer_version, "conflict"
@@ -422,7 +493,7 @@ def run(project, plugin_root, requested_rules, delegation, python_interp):
         blocks, plugin_root, requested, manifest["rules"], versions)
     report["rules"] = rules_report
     for item in rules_report:
-        if item["status"] == "conflict":
+        if item["status"] in ("conflict", "tailored-stale"):
             report["needs_user_decision"].append({"phase": "C", "detail": f"{item['rule']}: {item['detail']}"})
         elif item["status"] == "error":
             report["errors"].append({"phase": "C", "detail": f"{item['rule']}: {item['detail']}"})
@@ -515,6 +586,8 @@ def check_versions(plugin_root):
             problems.append(f"{rel}: missing from versions.json")
         elif versions[rel] != version:
             problems.append(f"{rel}: versions.json has {versions[rel]}, header has {version}")
+        if block_is_tailored(text):
+            problems.append(f"{rel}: shipped source contains a '<!-- tailored -->' marker (project-only marker)")
     for rel in versions:
         if rel != "pointer" and rel not in seen:
             problems.append(f"{rel}: listed in versions.json but file not found")
@@ -552,6 +625,55 @@ def self_test():
     assert report[0]["status"] == "unchanged", report
     blocks, manifest_rules, report = process_rules(blocks, src_dir.parent, ["FOO.md"], {"FOO.md": 5}, {})
     assert report[0]["status"] == "conflict", report
+
+    # tolerant version parse: historical blank-line format (regression: bug that
+    # silently overwrote a v4 block with v3 source because int('') threw)
+    assert parse_block_version("# Version\n\n4\n\n# Foo Rules\nbody\n") == 4
+    assert parse_block_version("# Version\n2\n\n# Foo Rules\n") == 2
+    assert parse_block_version("# Version\n\n# Foo Rules\n") is None
+
+    # pre-manifest blocks in the blank-line format: conflict + unchanged paths
+    blank_conflict = {"title": "# Foo Rules", "text": "# Version\n\n4\n\n# Foo Rules\n\nbody\n"}
+    _, _, rep_bc = process_rules([blank_conflict], src_dir.parent, ["FOO.md"], {}, {})
+    assert rep_bc[0]["status"] == "conflict", rep_bc
+    blank_equal = {"title": "# Foo Rules", "text": "# Version\n\n2\n\n# Foo Rules\n\nbody\n"}
+    _, _, rep_be = process_rules([blank_equal], src_dir.parent, ["FOO.md"], {}, {})
+    assert rep_be[0]["status"] == "unchanged", rep_be
+
+    # orphan tail preserved on replace (regression: user-authored sections after
+    # the last managed block were deleted by a block update)
+    stale_with_tail = {"title": "# Foo Rules",
+                       "text": "# Version\n1\n\n# Foo Rules\n\nold body\n\n# My Project Notes\n\nkeep me\n"}
+    blocks_o = [stale_with_tail]
+    blocks_o, _, rep_o = process_rules(blocks_o, src_dir.parent, ["FOO.md"], {"FOO.md": 1}, {})
+    assert rep_o[0]["status"] == "updated" and rep_o[0]["preserved"] == ["# My Project Notes"], rep_o
+    assert len(blocks_o) == 2 and "keep me" in blocks_o[1]["text"], blocks_o
+    assert "My Project Notes" not in blocks_o[0]["text"], blocks_o
+
+    # multi-heading source (PYTHON/FLUTTER style): its own extra heading must
+    # NOT be split out as an orphan
+    (src_dir / "MULTI.md").write_text(
+        "# Version\n1\n\n# Multi Rules\n\nbody\n\n# Essential Extras\n\nmore\n", encoding="utf-8")
+    old_multi = {"title": "# Multi Rules",
+                 "text": "# Version\n0\n\n# Multi Rules\n\nold\n\n# Essential Extras\n\nold more\n"}
+    blocks_m = [old_multi]
+    blocks_m, _, rep_m = process_rules(blocks_m, src_dir.parent, ["MULTI.md"], {}, {})
+    assert rep_m[0]["status"] == "updated" and "preserved" not in rep_m[0], rep_m
+    assert len(blocks_m) == 1 and "old more" not in blocks_m[0]["text"], blocks_m
+
+    # tailored marker: stale -> tailored-stale + untouched; equal -> unchanged
+    tailored_stale = {"title": "# Foo Rules",
+                      "text": "# Version\n1\n\n# Foo Rules\n<!-- tailored -->\n\ncustom body\n"}
+    _, mf_ts, rep_ts = process_rules([tailored_stale], src_dir.parent, ["FOO.md"], {}, {})
+    assert rep_ts[0]["status"] == "tailored-stale", rep_ts
+    assert "custom body" in tailored_stale["text"]
+    assert mf_ts["FOO.md"] == 1, mf_ts
+    tailored_equal = {"title": "# Foo Rules",
+                      "text": "# Version\n2\n\n# Foo Rules\n<!-- tailored -->\n\ncustom body\n"}
+    _, mf_te, rep_te = process_rules([tailored_equal], src_dir.parent, ["FOO.md"], {}, {})
+    assert rep_te[0]["status"] == "unchanged" and mf_te["FOO.md"] == 2, rep_te
+    # a fenced '<!-- tailored -->' (documentation example) does not count
+    assert not block_is_tailored("# Version\n1\n\n# X\n\n```\n<!-- tailored -->\n```\n")
 
     # process_rules: pre-manifest project -- existing block already at current
     # version must NOT be rewritten just because the manifest has no entry,
