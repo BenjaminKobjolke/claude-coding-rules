@@ -1,5 +1,5 @@
 # Version
-1
+2
 
 Increase this version number whenever this rule file changes.
 
@@ -19,3 +19,9 @@ Increase this version number whenever this rule file changes.
 ```
 
 Start new rule files at version `1`. Increment the integer whenever the rule file changes.
+
+After creating or bumping a rule file, add or update its entry in
+`versions.json` in this same folder (key = path relative to this folder, e.g.
+`project_type/REST_API.md`) to match the new `# Version` number, then run
+`python ../skills/apply/apply.py --check-versions` to confirm the header and
+the index agree. See the repo root `CLAUDE.md` for the full rule.

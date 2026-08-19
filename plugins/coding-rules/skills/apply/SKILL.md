@@ -17,6 +17,65 @@ Always read `${CLAUDE_PLUGIN_ROOT}/rules/COMMON_RULES.md` and `${CLAUDE_PLUGIN_R
 - Project-type rules: see `PROJECT_TYPES.md` for the overview, files in `project_type/`
 - Optional addon rules in `ai_rules_addons/` — include only after the user opts in
 
+If `<project>/coding-rules.json` already exists, read it: its `rules` map is the
+prior selection (keys are paths relative to `rules/`, e.g. `PYTHON_RULES.md`,
+`project_type/REST_API.md`). On a re-run, only ask the user about deltas
+(newly-relevant languages/project types) instead of re-deriving the whole list.
+
+## Delegation choice
+
+If `<project>/coding-rules.json` exists and has a `delegation` field, reuse it
+— do not re-ask. Otherwise ask the user: "Delegate the DRY and convention
+checks in this project to Codex, DeepSeek, or neither (Claude performs those
+checks itself)?" Map the answer to `codex`, `deepseek`, or `neither` for the
+`--delegation` flag below.
+
+## Fast path — `apply.py`
+
+<!-- claude-code-only:start -->
+Detect a Python interpreter: try `python --version`, then `python3`, then
+`py`. If one works, use it to run the deterministic core instead of doing
+Phases B–E by hand. Tell the user which interpreter was found, e.g. "Found
+`python`, applying rules via apply.py." — this is the signal for whether the
+fast path or the fallback ran.
+
+```
+python <plugin-root>/skills/apply/apply.py \
+  --project <project-root> \
+  --plugin-root <plugin-root> \
+  --rules <comma-separated paths from Phase A, e.g. COMMON_RULES.md,AI_RULES.md,PYTHON_RULES.md> \
+  --delegation <codex|deepseek|neither|keep> \
+  --python <detected interpreter> \
+  --json
+```
+
+`<plugin-root>` is `${CLAUDE_PLUGIN_ROOT}`. This single call performs Phases
+B, C, D, D2, and E (legacy migration, version-merged `CODING_RULES.md`,
+`CLAUDE.md` pointer, delegation marker + permission merge, and hook install)
+and writes `<project>/coding-rules.json`. Parse the JSON report:
+
+- `needs_user_decision` items (an unrecognized legacy block in `CLAUDE.md`, or
+  a rule/pointer version conflict where the project's applied version is
+  *higher* than the source) — surface each to the user and ask how to
+  reconcile; the script left the file untouched so nothing is lost by asking.
+- `errors` items (e.g. an unparsable `settings.json`) — report verbatim; the
+  file was left untouched.
+- Otherwise summarize what changed (which rule blocks were updated, pointer
+  status, delegation, hook status) for the user.
+
+If no interpreter works, skip this fast path and use the fallback below
+instead — tell the user: "No Python interpreter found (`python`/`python3`/`py`
+all failed) — applying rules manually, apply.py not used."
+<!-- claude-code-only:end -->
+
+## Fallback (manual) — no Python interpreter available
+
+Do Phases B–E below by hand, in order. Tell the user this path is running (see
+the interpreter-detection note above) so it's clear `apply.py` was skipped.
+This is also the only path when `claude-code-only` content is stripped for
+non-Claude-Code agents (see `sync_skills.py`) — in that case the interpreter
+check doesn't apply; just note "Running the manual coding-rules-apply flow."
+
 ## Phase B — Migrate legacy CLAUDE.md (idempotent)
 
 If the project has a `CLAUDE.md`, scan it for legacy inlined rule blocks: a `# Version` line followed by a number, followed by a rule-document title that matches one of the shipped rule files (e.g. `# Common Rules (All Languages)`, `# AI Workflow Rules (All Languages)`, `# PHP Rules`, …). A block ends at the next `# Version` line, the pointer block, or end of file.
@@ -73,33 +132,26 @@ the top of `CODING_RULES.md`: `<!-- codex: enabled/disabled -->` and
 `<!-- deepseek: enabled/disabled -->`. The two are mutually exclusive — at
 most one is `enabled`.
 
-- If `CODING_RULES.md` already contains a `<!-- codex: ... -->` or
-  `<!-- deepseek: ... -->` marker, keep the current selection and do not
-  re-ask. If one of them is `enabled`, still run that backend's permission
-  merge from the `on` steps of its skill file
-  (`${CLAUDE_PLUGIN_ROOT}/skills/codex/SKILL.md` merges
-  `"Bash(codex exec:*)"` / `"PowerShell(codex exec:*)"`;
-  `${CLAUDE_PLUGIN_ROOT}/skills/deepseek/SKILL.md` merges
-  `"Bash(reasonix run:*)"` / `"PowerShell(reasonix run:*)"`) into
-  `<project>/.claude/settings.local.json` `permissions.allow` — the merge is
-  idempotent and picks up permissions added in newer plugin versions.
-- Otherwise ask the user: "Delegate the DRY and convention checks in this
-  project to Codex, DeepSeek, or neither (Claude performs those checks
-  itself)?"
-  - Codex → follow the `on` steps of `${CLAUDE_PLUGIN_ROOT}/skills/codex/SKILL.md`
-    (insert `<!-- codex: enabled -->` after the managed-by comment, verify
-    `codex --version`, merge `"Bash(codex exec:*)"` and
-    `"PowerShell(codex exec:*)"` into
-    `<project>/.claude/settings.local.json` `permissions.allow` per that skill's
-    merge rules, and insert `<!-- deepseek: disabled -->`).
-  - DeepSeek → follow the `on` steps of
-    `${CLAUDE_PLUGIN_ROOT}/skills/deepseek/SKILL.md` (insert
-    `<!-- deepseek: enabled -->` after the managed-by comment, verify
-    `reasonix --version`, merge `"Bash(reasonix run:*)"` and
-    `"PowerShell(reasonix run:*)"` into
-    `<project>/.claude/settings.local.json` `permissions.allow` per that skill's
-    merge rules, and insert `<!-- codex: disabled -->`).
-  - Neither → insert `<!-- codex: disabled -->` after the managed-by comment.
+Use the choice from the "Delegation choice" step above (do not re-ask here):
+
+- Codex → follow the `on` steps of `${CLAUDE_PLUGIN_ROOT}/skills/codex/SKILL.md`
+  (insert `<!-- codex: enabled -->` after the managed-by comment, verify
+  `codex --version`, merge `"Bash(codex exec:*)"` and
+  `"PowerShell(codex exec:*)"` into
+  `<project>/.claude/settings.local.json` `permissions.allow` per that skill's
+  merge rules, and insert `<!-- deepseek: disabled -->`).
+- DeepSeek → follow the `on` steps of
+  `${CLAUDE_PLUGIN_ROOT}/skills/deepseek/SKILL.md` (insert
+  `<!-- deepseek: enabled -->` after the managed-by comment, verify
+  `reasonix --version`, merge `"Bash(reasonix run:*)"` and
+  `"PowerShell(reasonix run:*)"` into
+  `<project>/.claude/settings.local.json` `permissions.allow` per that skill's
+  merge rules, and insert `<!-- codex: disabled -->`).
+- Neither → insert `<!-- codex: disabled -->` and `<!-- deepseek: disabled -->`
+  after the managed-by comment.
+- If a marker for the chosen backend is already `enabled`, still (re-)run that
+  backend's permission merge — idempotent, and picks up permissions added in
+  newer plugin versions.
 <!-- claude-code-only:end -->
 
 <!-- claude-code-only:start -->
@@ -149,6 +201,38 @@ Merge rules:
 
 Note for the user: plan-mode sessions get the reminder at plan acceptance; all other sessions get it on the first code edit (tracked per session via a marker file in the temp dir, silent for later edits). Hooks added mid-session don't load until the user opens `/hooks` once or restarts the session.
 <!-- claude-code-only:end -->
+
+## Phase F — Write the manifest (fallback path only)
+
+After completing Phases B–E by hand, create or update `<project>/coding-rules.json`
+so a later run (by either path) knows what's already applied:
+
+```json
+{
+  "rules": { "COMMON_RULES.md": 3, "AI_RULES.md": 10, "...": 1 },
+  "delegation": "codex",
+  "pointerVersion": 1,
+  "python": "python",
+  "pluginRoot": "<absolute path to the plugin's rules/ parent, e.g. ${CLAUDE_PLUGIN_ROOT}>"
+}
+```
+
+- `rules` maps each rule file actually copied into `CODING_RULES.md` (path
+  relative to `rules/`, e.g. `PYTHON_RULES.md`, `project_type/REST_API.md`) to
+  the version of that block as written. `pointerVersion` is the version of the
+  pointer block currently in `CLAUDE.md`. `python` is the interpreter detected
+  in Phase E, or `null` if none was found.
+- If the project already had `CODING_RULES.md` and/or a pointer block from a
+  before-this-feature install (no manifest yet), reconstruct `coding-rules.json`
+  from what's *currently* applied — read the version out of each existing block's
+  own `# Version` line rather than assuming it's stale, so an already-current
+  block isn't second-guessed.
+- The fast path (`apply.py`) writes and maintains this file automatically; this
+  step exists only because the fallback does the same work by hand.
+
+Note: `coding-rules.json` is project-local state (the `pluginRoot` path is
+machine-specific) — tell the user to add it to their `.gitignore` if the
+project is version-controlled.
 
 ## Applicability
 

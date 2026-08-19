@@ -62,6 +62,11 @@ def build_skill(src_md, skill_name, dest_dir, with_rules):
     )
     if with_rules:
         shutil.copytree(PLUGIN_ROOT / "rules", dest_dir / "rules", dirs_exist_ok=True)
+        apply_py = src_md.parent / "apply.py"
+        if apply_py.exists():
+            # No adaptation needed: apply.py takes --plugin-root as a CLI flag,
+            # it has no ${CLAUDE_PLUGIN_ROOT} placeholders to rewrite.
+            shutil.copy2(apply_py, dest_dir / "apply.py")
     print(f"skill: {skill_name} -> {dest_dir}")
 
 
