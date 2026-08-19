@@ -34,6 +34,9 @@ ask the user whether to change it.
    `<!-- codex: ... -->` marker in place, otherwise insert the marker on its own
    line directly after the `<!-- Managed by /coding-rules:apply ... -->` comment
    (or as the first line if that comment is missing).
+   Codex and DeepSeek are mutually exclusive delegates. If a
+   `<!-- deepseek: enabled -->` marker exists, set it to
+   `<!-- deepseek: disabled -->` and tell the user DeepSeek was disabled.
 3. Check the Codex CLI is installed (`codex --version`). If it fails, warn the
    user that codex is not on PATH but keep the marker enabled.
 
@@ -85,6 +88,8 @@ Report:
 - Whether `"Bash(codex exec:*)"` and `"PowerShell(codex exec:*)"` are present
   in `.claude/settings.local.json` `permissions.allow` (report each).
 - Whether `codex --version` succeeds.
+- The `<!-- deepseek: ... -->` marker state, since only one delegate should be
+  enabled at a time.
 
 ## test
 

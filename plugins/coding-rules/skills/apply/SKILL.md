@@ -65,27 +65,41 @@ Do not inline rules back into this file and do not use `@import` for
 ```
 
 <!-- claude-code-only:start -->
-## Phase D2 — Codex toggle (idempotent)
+## Phase D2 — Delegation backend toggle (idempotent)
 
-The AI workflow rules can delegate DRY/convention checks to the Codex CLI (see
-the Codex toggle section in `AI_RULES.md`). State is a marker near the top of
-`CODING_RULES.md`: `<!-- codex: enabled -->` or `<!-- codex: disabled -->`.
+The AI workflow rules can delegate DRY/convention checks to Codex or DeepSeek
+(see the Delegation backends section in `AI_RULES.md`). State is a marker near
+the top of `CODING_RULES.md`: `<!-- codex: enabled/disabled -->` and
+`<!-- deepseek: enabled/disabled -->`. The two are mutually exclusive — at
+most one is `enabled`.
 
-- If `CODING_RULES.md` already contains a `<!-- codex: ... -->` marker, keep it
-  and do not re-ask. If the marker is `enabled`, still run the permission merge
-  from the `on` steps of `${CLAUDE_PLUGIN_ROOT}/skills/codex/SKILL.md`
-  (merge `"Bash(codex exec:*)"` and `"PowerShell(codex exec:*)"` into
-  `<project>/.claude/settings.local.json` `permissions.allow`) — the merge is
+- If `CODING_RULES.md` already contains a `<!-- codex: ... -->` or
+  `<!-- deepseek: ... -->` marker, keep the current selection and do not
+  re-ask. If one of them is `enabled`, still run that backend's permission
+  merge from the `on` steps of its skill file
+  (`${CLAUDE_PLUGIN_ROOT}/skills/codex/SKILL.md` merges
+  `"Bash(codex exec:*)"` / `"PowerShell(codex exec:*)"`;
+  `${CLAUDE_PLUGIN_ROOT}/skills/deepseek/SKILL.md` merges
+  `"Bash(reasonix run:*)"` / `"PowerShell(reasonix run:*)"`) into
+  `<project>/.claude/settings.local.json` `permissions.allow` — the merge is
   idempotent and picks up permissions added in newer plugin versions.
-- Otherwise ask the user: "Use Codex for the DRY and convention checks in this
-  project? (If no, Claude performs those checks itself.)"
-  - Yes → follow the `on` steps of `${CLAUDE_PLUGIN_ROOT}/skills/codex/SKILL.md`
+- Otherwise ask the user: "Delegate the DRY and convention checks in this
+  project to Codex, DeepSeek, or neither (Claude performs those checks
+  itself)?"
+  - Codex → follow the `on` steps of `${CLAUDE_PLUGIN_ROOT}/skills/codex/SKILL.md`
     (insert `<!-- codex: enabled -->` after the managed-by comment, verify
-    `codex --version`, and merge `"Bash(codex exec:*)"` and
+    `codex --version`, merge `"Bash(codex exec:*)"` and
     `"PowerShell(codex exec:*)"` into
     `<project>/.claude/settings.local.json` `permissions.allow` per that skill's
-    merge rules).
-  - No → insert `<!-- codex: disabled -->` after the managed-by comment.
+    merge rules, and insert `<!-- deepseek: disabled -->`).
+  - DeepSeek → follow the `on` steps of
+    `${CLAUDE_PLUGIN_ROOT}/skills/deepseek/SKILL.md` (insert
+    `<!-- deepseek: enabled -->` after the managed-by comment, verify
+    `reasonix --version`, merge `"Bash(reasonix run:*)"` and
+    `"PowerShell(reasonix run:*)"` into
+    `<project>/.claude/settings.local.json` `permissions.allow` per that skill's
+    merge rules, and insert `<!-- codex: disabled -->`).
+  - Neither → insert `<!-- codex: disabled -->` after the managed-by comment.
 <!-- claude-code-only:end -->
 
 <!-- claude-code-only:start -->

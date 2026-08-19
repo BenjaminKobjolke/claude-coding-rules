@@ -1,5 +1,5 @@
 # Version
-9
+10
 
 Increase this version number whenever this rule file changes.
 
@@ -17,17 +17,25 @@ skill rather than reimplementing its behavior.
 
 ---
 
-## Codex toggle
+## Delegation backends (Codex / DeepSeek)
 
-Some of the workflow steps below can be delegated to the Codex CLI. Whether a
-project uses Codex is controlled by a marker near the top of `CODING_RULES.md`:
+Some of the workflow steps below can be delegated to an external CLI instead
+of being performed by the agent itself. Two backends are supported, and they
+are **mutually exclusive** — at most one is enabled at a time:
 
-- `<!-- codex: enabled -->` — run the `codex exec` commands below.
-- `<!-- codex: disabled -->` or no marker — do NOT run Codex; perform the same
+- `<!-- codex: enabled -->` — delegate to Codex, running:
+  `codex exec --dangerously-bypass-approvals-and-sandbox "<PROMPT>"`
+- `<!-- deepseek: enabled -->` — delegate to DeepSeek, running:
+  `reasonix run --auto "<PROMPT>"`
+- Neither marker `enabled` (or no marker) — do NOT delegate; perform the same
   checks yourself via the listed fallback skills.
 
-The marker is managed by `/coding-rules:codex on|off|status` (or set during
-`/coding-rules:apply`). Do not flip it yourself without the user asking.
+Read precedence if both markers somehow end up `enabled`: Codex wins, then
+DeepSeek, then the self-fallback.
+
+The markers are managed by `/coding-rules:codex on|off|status|test` and
+`/coding-rules:deepseek on|off|status|test` (or set during
+`/coding-rules:apply`). Do not flip them yourself without the user asking.
 
 ## Feature / Change Workflow
 
@@ -41,15 +49,15 @@ path to both plan-DRY commands.
 plan approved
 
 plan DRY check
-  codex enabled:
-    codex exec --dangerously-bypass-approvals-and-sandbox "FULL PATH TO PLAN - Can you check the plan for DRY opportunities and if you find any, apply them to the original plan file. Only edit the plan file — do NOT modify any source code or implement the plan. Always add a summary at the end called SUMMARY DRY — if you made changes, describe what and why; if you found nothing, write 'No DRY opportunities found.'"
-  codex disabled:
+  delegate enabled (codex or deepseek — run <PROMPT> via that backend's CLI, see Delegation backends above):
+    <PROMPT> = "FULL PATH TO PLAN - Can you check the plan for DRY opportunities and if you find any, apply them to the original plan file. Only edit the plan file — do NOT modify any source code or implement the plan. Always add a summary at the end called SUMMARY DRY — if you made changes, describe what and why; if you found nothing, write 'No DRY opportunities found.'"
+  delegate disabled:
     /plan:dry <plan-file>
 
 plan convention check
-  codex enabled:
-    codex exec --dangerously-bypass-approvals-and-sandbox "FULL PATH TO PLAN $convention-check - If you want to make any changes, apply them to the original plan file. Only edit the plan file — do NOT modify any source code or implement the plan. Always add a summary at the end called SUMMARY CONVENTION CHECK — if you made changes, describe what and why; if you found nothing, write 'No convention issues found.'"
-  codex disabled:
+  delegate enabled (codex or deepseek — run <PROMPT> via that backend's CLI, see Delegation backends above):
+    <PROMPT> = "FULL PATH TO PLAN $convention-check - If you want to make any changes, apply them to the original plan file. Only edit the plan file — do NOT modify any source code or implement the plan. Always add a summary at the end called SUMMARY CONVENTION CHECK — if you made changes, describe what and why; if you found nothing, write 'No convention issues found.'"
+  delegate disabled:
     /convention:check — apply findings to the plan file
 
 /plan:dry-checked    reload the DRY and convention adjusted plan
@@ -69,10 +77,10 @@ implement
   looks at code.
 
 post-implementation DRY audit — scope is ONLY the changed-files file above
-  codex enabled:
-    codex exec --dangerously-bypass-approvals-and-sandbox "Read FULL PATH TO CHANGED-FILES FILE and check ONLY the files listed there for DRY opportunities. Do not use git status or git diff to widen the scope — other sessions may have concurrent uncommitted changes. Do NOT modify any code. Write your suggestions to <plan-file-path-without-.md>-post-implementation-check.md (next to the plan, same naming as the changed-files file), overwriting the file if it already exists. Include for each finding the affected files and a short rationale. Always write the file, even if you found nothing — in that case write a SUMMARY block stating 'No DRY opportunities found.'"
+  delegate enabled (codex or deepseek — run <PROMPT> via that backend's CLI, see Delegation backends above):
+    <PROMPT> = "Read FULL PATH TO CHANGED-FILES FILE and check ONLY the files listed there for DRY opportunities. Do not use git status or git diff to widen the scope — other sessions may have concurrent uncommitted changes. Do NOT modify any code. Write your suggestions to <plan-file-path-without-.md>-post-implementation-check.md (next to the plan, same naming as the changed-files file), overwriting the file if it already exists. Include for each finding the affected files and a short rationale. Always write the file, even if you found nothing — in that case write a SUMMARY block stating 'No DRY opportunities found.'"
     then read that post-implementation-check file, validate each finding, and apply the valid ones. Bring a finding to the user only if a question arises — otherwise apply silently.
-  codex disabled:
+  delegate disabled:
     /dry:check <files from the changed-files file, as pathspec>
 
 Post-Feature Verification + Post-Implementation Code Analysis (project-specific, below)
