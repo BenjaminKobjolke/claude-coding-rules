@@ -1,13 +1,13 @@
-"""Install the coding-rules skills into Codex (~/.codex/skills/).
+"""Install the coding-rules skills into an external agent's skills folder.
 
-Codex has no plugin marketplace; skills are plain folders with a SKILL.md.
-This copies the plugin's apply/enforce skills there, adapted for Codex:
+Codex and pi agent have no plugin marketplace; skills are plain folders with a
+SKILL.md. This copies the plugin's apply/enforce skills there, adapted:
 - ${CLAUDE_PLUGIN_ROOT}/ paths become paths relative to the skill folder
 - the rules/ folder is bundled next to the apply skill
 - /coding-rules:apply slash-command references become skill-name references
 
-Run:  python sync_to_codex.py        (re-run any time to update)
-Test: python sync_to_codex.py --self-test
+Run:  python sync_skills.py [codex|pi]   (default codex; re-run any time to update)
+Test: python sync_skills.py --self-test
 """
 
 import re
@@ -16,13 +16,17 @@ import sys
 from pathlib import Path
 
 PLUGIN_ROOT = Path(__file__).resolve().parents[2]  # .../plugins/coding-rules
-SKILLS_DIR = Path.home() / ".codex" / "skills"
+
+TARGETS = {
+    "codex": Path.home() / ".codex" / "skills",
+    "pi": Path.home() / ".pi" / "agent" / "skills",
+}
 
 RELATIVE_NOTE = "Paths in this skill are relative to this skill's folder.\n\n"
 
 
 def adapt(body):
-    """Rewrite Claude-plugin specifics for a standalone Codex skill."""
+    """Rewrite Claude-plugin specifics for a standalone skill."""
     body = re.sub(r"<!-- claude-code-only:start -->.*?<!-- claude-code-only:end -->\n?",
                   "", body, flags=re.DOTALL)
     body = body.replace("${CLAUDE_PLUGIN_ROOT}/", "")
@@ -42,7 +46,7 @@ def split_frontmatter(text):
     return [], text
 
 
-def build_skill(src_md, codex_name, dest_dir, with_rules):
+def build_skill(src_md, skill_name, dest_dir, with_rules):
     front, body = split_frontmatter(src_md.read_text(encoding="utf-8"))
     description = ""
     for line in front:
@@ -53,20 +57,24 @@ def build_skill(src_md, codex_name, dest_dir, with_rules):
         body = RELATIVE_NOTE + body
     dest_dir.mkdir(parents=True, exist_ok=True)
     (dest_dir / "SKILL.md").write_text(
-        f"---\nname: {codex_name}\ndescription: {description}\n---\n\n{body}",
+        f"---\nname: {skill_name}\ndescription: {description}\n---\n\n{body}",
         encoding="utf-8",
     )
     if with_rules:
         shutil.copytree(PLUGIN_ROOT / "rules", dest_dir / "rules", dirs_exist_ok=True)
-    print(f"skill: {codex_name} -> {dest_dir}")
+    print(f"skill: {skill_name} -> {dest_dir}")
 
 
-def sync():
+def sync(target="codex"):
+    if target not in TARGETS:
+        print(f"Unknown target '{target}'. Valid targets: {', '.join(TARGETS)}")
+        sys.exit(1)
+    skills_dir = TARGETS[target]
     build_skill(PLUGIN_ROOT / "skills" / "apply" / "SKILL.md",
-                "coding-rules-apply", SKILLS_DIR / "coding-rules-apply", with_rules=True)
+                "coding-rules-apply", skills_dir / "coding-rules-apply", with_rules=True)
     build_skill(PLUGIN_ROOT / "skills" / "enforce" / "SKILL.md",
-                "coding-rules-enforce", SKILLS_DIR / "coding-rules-enforce", with_rules=False)
-    print(f"\nDone. Target: {SKILLS_DIR}")
+                "coding-rules-enforce", skills_dir / "coding-rules-enforce", with_rules=False)
+    print(f"\nDone. Target: {skills_dir}")
 
 
 def self_test():
@@ -80,11 +88,14 @@ def self_test():
     stripped = adapt("keep A\n<!-- claude-code-only:start -->\nhook stuff\n"
                      "<!-- claude-code-only:end -->\nkeep B\n")
     assert stripped == "keep A\nkeep B\n", repr(stripped)
+    assert TARGETS["codex"].parts[-2:] == (".codex", "skills"), TARGETS["codex"]
+    assert TARGETS["pi"].parts[-3:] == (".pi", "agent", "skills"), TARGETS["pi"]
     print("self-test OK")
 
 
 if __name__ == "__main__":
+    args = [a for a in sys.argv[1:] if not a.startswith("--")]
     if "--self-test" in sys.argv:
         self_test()
     else:
-        sync()
+        sync(args[0] if args else "codex")

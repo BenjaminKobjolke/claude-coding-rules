@@ -11,7 +11,7 @@ with the rule files bundled.
 Run the bundled script:
 
 ```bash
-python "${CLAUDE_PLUGIN_ROOT}/skills/sync-codex/sync_to_codex.py"
+python "${CLAUDE_PLUGIN_ROOT}/skills/sync-codex/sync_skills.py"
 ```
 
 Re-run it any time the rules or skills change to update the Codex copies.
