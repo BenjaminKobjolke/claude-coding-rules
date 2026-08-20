@@ -5,6 +5,8 @@
   "PHP_RULES.md": 1,
   "PYTHON_RULES.md": 1,
   "CSHARP_RULES.md": 1,
+  "JAVASCRIPT_RULES.md": 1,
+  "TYPESCRIPT_RULES.md": 1,
   "FLUTTER_RULES.md": 1,
   "SVELTE_RULES.md": 1,
   "SCSS_RULES.md": 1,
