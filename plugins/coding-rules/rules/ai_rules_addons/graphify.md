@@ -1,5 +1,5 @@
 # Version
-5
+6
 
 Increase this version number whenever this rule file changes.
 
@@ -98,6 +98,22 @@ when copying the following sections.
   healthy; high **fan-out** (>~20 outgoing deps) is god-class risk and a refactor signal.
 - Read `graphify-out/GRAPH_REPORT.md` only for broad architecture review, or when
   query/path/explain do not surface enough context.
+
+### Delegated checks (Codex / DeepSeek)
+
+When this project delegates the plan/DRY/convention checks to an external CLI
+(see `AI_RULES.md` "Delegation backends"), prepend this **graphify delegate
+preamble** to the `<PROMPT>` before sending it to that backend:
+
+```
+Graphify: this project has a graphify knowledge graph. For any codebase
+question, run `graphify query "<question>"` first (also `graphify path "<A>"
+"<B>"`, `graphify explain "<concept>"`) instead of raw grep.
+```
+
+Prepend only — do not otherwise change the `<PROMPT>`. Harmless if the graph
+is not built yet: `graphify query` simply returns nothing and the CLI falls
+back to reading files.
 
 ### Refreshing after a code change
 

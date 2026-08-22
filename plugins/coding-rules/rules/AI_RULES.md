@@ -1,5 +1,5 @@
 # Version
-10
+11
 
 Increase this version number whenever this rule file changes.
 
@@ -33,6 +33,11 @@ are **mutually exclusive** — at most one is enabled at a time:
 Read precedence if both markers somehow end up `enabled`: Codex wins, then
 DeepSeek, then the self-fallback.
 
+**Graphify preamble (optional).** If this project's `CODING_RULES.md` includes
+the graphify addon, prepend its graphify delegate preamble to every `<PROMPT>`
+below before invoking the backend CLI (see the graphify addon's "Delegated
+checks" section). If the addon is not present, send `<PROMPT>` unchanged.
+
 The markers are managed by `/coding-rules:codex on|off|status|test` and
 `/coding-rules:deepseek on|off|status|test` (or set during
 `/coding-rules:apply`). Do not flip them yourself without the user asking.
@@ -49,13 +54,13 @@ path to both plan-DRY commands.
 plan approved
 
 plan DRY check
-  delegate enabled (codex or deepseek — run <PROMPT> via that backend's CLI, see Delegation backends above):
+  delegate enabled (codex or deepseek — run <PROMPT> via that backend's CLI, see Delegation backends above; prepend graphify preamble if applicable):
     <PROMPT> = "FULL PATH TO PLAN - Can you check the plan for DRY opportunities and if you find any, apply them to the original plan file. Only edit the plan file — do NOT modify any source code or implement the plan. Always add a summary at the end called SUMMARY DRY — if you made changes, describe what and why; if you found nothing, write 'No DRY opportunities found.'"
   delegate disabled:
     /plan:dry <plan-file>
 
 plan convention check
-  delegate enabled (codex or deepseek — run <PROMPT> via that backend's CLI, see Delegation backends above):
+  delegate enabled (codex or deepseek — run <PROMPT> via that backend's CLI, see Delegation backends above; prepend graphify preamble if applicable):
     <PROMPT> = "FULL PATH TO PLAN $convention-check - If you want to make any changes, apply them to the original plan file. Only edit the plan file — do NOT modify any source code or implement the plan. Always add a summary at the end called SUMMARY CONVENTION CHECK — if you made changes, describe what and why; if you found nothing, write 'No convention issues found.'"
   delegate disabled:
     /convention:check — apply findings to the plan file
@@ -77,13 +82,18 @@ implement
   looks at code.
 
 post-implementation DRY audit — scope is ONLY the changed-files file above
-  delegate enabled (codex or deepseek — run <PROMPT> via that backend's CLI, see Delegation backends above):
+  delegate enabled (codex or deepseek — run <PROMPT> via that backend's CLI, see Delegation backends above; prepend graphify preamble if applicable):
     <PROMPT> = "Read FULL PATH TO CHANGED-FILES FILE and check ONLY the files listed there for DRY opportunities. Do not use git status or git diff to widen the scope — other sessions may have concurrent uncommitted changes. Do NOT modify any code. Write your suggestions to <plan-file-path-without-.md>-post-implementation-check.md (next to the plan, same naming as the changed-files file), overwriting the file if it already exists. Include for each finding the affected files and a short rationale. Always write the file, even if you found nothing — in that case write a SUMMARY block stating 'No DRY opportunities found.'"
     then read that post-implementation-check file, validate each finding, and apply the valid ones. Bring a finding to the user only if a question arises — otherwise apply silently.
   delegate disabled:
     /dry:check <files from the changed-files file, as pathspec>
 
 Post-Feature Verification + Post-Implementation Code Analysis (project-specific, below)
+
+refresh graphify graph — only if the graphify addon is present in this project's CODING_RULES.md:
+  /graphify <code-dir> --directed   → writes root graphify-out/, verify directed: true
+  (see the graphify addon's "Refreshing after a code change" section for the
+   directed-flow caveats: never the bare `graphify update`, multi-path merge check)
 
 ```
 
