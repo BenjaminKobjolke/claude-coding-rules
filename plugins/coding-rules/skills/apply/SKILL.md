@@ -22,6 +22,14 @@ prior selection (keys are paths relative to `rules/`, e.g. `PYTHON_RULES.md`,
 `project_type/REST_API.md`). On a re-run, only ask the user about deltas
 (newly-relevant languages/project types) instead of re-deriving the whole list.
 
+Optional addon rules (`ai_rules_addons/*.md`) are the one exception: re-ask
+about every addon NOT already present in the `rules` map on every run, even
+if a prior run's answer was "no". A previous decline is not durable consent
+to skip asking forever — the user's needs change, and addons are cheap to
+ask about. Once an addon is accepted and its key lands in `rules`, stop
+asking (a present key is durable; treat removal from `CODING_RULES.md` as an
+explicit opt-out signal instead of silently re-adding it).
+
 ## Delegation choice
 
 If `<project>/coding-rules.json` exists and has a `delegation` field, reuse it

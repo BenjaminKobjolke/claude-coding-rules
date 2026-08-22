@@ -153,9 +153,18 @@ def block_is_tailored(block_text):
     return False
 
 
-def source_headings(src_text):
-    """All non-fenced top-level headings of a source doc, incl. '# Version'.
-    Sources may legitimately have more than one (FLUTTER, PYTHON)."""
+ATX_HEADING_RE = re.compile(r"^#{1,6} ")
+
+
+def source_headings(src_text, all_levels=False):
+    """Non-fenced headings of a source doc, incl. '# Version'. Sources may
+    legitimately have more than one top-level heading (FLUTTER, PYTHON).
+
+    Default (all_levels=False): top-level '# ' headings only -- process_rules'
+    ongoing-update path, kept conservative so it never re-preserves a rule
+    subsection the source deliberately removed.
+    all_levels=True: every ATX heading level ('#'..'######') -- used only by
+    the one-time legacy migration, where over-preservation beats deletion."""
     heads = {"# Version"}
     in_fence = False
     for line in src_text.splitlines():
@@ -163,16 +172,21 @@ def source_headings(src_text):
         if stripped.startswith("```"):
             in_fence = not in_fence
             continue
-        if not in_fence and stripped.startswith("# "):
+        if in_fence:
+            continue
+        if all_levels and ATX_HEADING_RE.match(stripped):
+            heads.add(stripped)
+        elif not all_levels and stripped.startswith("# "):
             heads.add(stripped)
     return heads
 
 
-def split_orphan_tail(block_text, src_text):
+def split_orphan_tail(block_text, src_text, all_levels=False):
     """Split an existing block into (managed_text, orphan_text) at the first
-    non-fenced top-level heading the source doc doesn't contain. The orphan is
-    user-authored content that must survive a block replacement."""
-    known = source_headings(src_text)
+    non-fenced heading the source doc doesn't contain. The orphan is
+    user-authored content that must survive a block replacement. See
+    source_headings() for what all_levels changes."""
+    known = source_headings(src_text, all_levels=all_levels)
     lines = block_text.splitlines(keepends=True)
     in_fence = False
     for i, line in enumerate(lines):
@@ -180,7 +194,10 @@ def split_orphan_tail(block_text, src_text):
         if stripped.startswith("```"):
             in_fence = not in_fence
             continue
-        if not in_fence and stripped.startswith("# ") and stripped not in known:
+        if in_fence:
+            continue
+        is_heading = ATX_HEADING_RE.match(stripped) if all_levels else stripped.startswith("# ")
+        if is_heading and stripped not in known:
             return "".join(lines[:i]), "".join(lines[i:])
     return block_text, ""
 
@@ -354,10 +371,15 @@ def strip_legacy_imports(text):
     )
 
 
-def migrate_legacy(text, title_to_rel):
+def migrate_legacy(text, title_to_rel, plugin_root=None):
     """Move recognized legacy '# Version' blocks out of CLAUDE.md text into a
     migrated-versions dict; leave unrecognized ones untouched and reported.
-    Returns (new_text, migrated_rel_to_version, unrecognized_titles)."""
+    A recognized block's own content is dropped (it moves into CODING_RULES.md
+    via process_rules), but any user-authored tail after the block's own
+    headings -- e.g. project notes appended below the last inlined rule doc,
+    which parse_managed's '# Version'-only split has no way to see as a
+    separate block -- is preserved verbatim (regression: previously deleted
+    whole). Returns (new_text, migrated_rel_to_version, unrecognized_titles)."""
     if not text:
         return text, {}, []
     lines, blocks = parse_managed(text)
@@ -376,7 +398,20 @@ def migrate_legacy(text, title_to_rel):
         ver = parse_block_version(b["text"]) if rel else None
         if rel and ver is not None:
             migrated[rel] = ver
-            continue  # dropped -- moves into CODING_RULES.md via process_rules
+            src_path = (plugin_root / "rules" / rel) if plugin_root else None
+            try:
+                src_text = read_text(src_path) if src_path else None
+            except OSError:
+                src_text = None
+            if src_text is None:
+                # Can't tell rule content from tail -- keep the whole block
+                # rather than silently delete unknown user content.
+                result_lines.extend(lines[b["start"]:b["end"]])
+            else:
+                _, orphan = split_orphan_tail(b["text"], src_text, all_levels=True)
+                if orphan:
+                    result_lines.append(orphan)
+            continue
         unrecognized.append(b["title"] or "(untitled block)")
         result_lines.extend(lines[b["start"]:b["end"]])
     return strip_legacy_imports("".join(result_lines)), migrated, unrecognized
@@ -476,7 +511,7 @@ def run(project, plugin_root, requested_rules, delegation, python_interp):
     claude_path = project / "CLAUDE.md"
     claude_text = read_text(claude_path) if claude_path.exists() else ""
     title_to_rel = build_title_index(plugin_root, versions)
-    claude_text, migrated, unrecognized = migrate_legacy(claude_text, title_to_rel)
+    claude_text, migrated, unrecognized = migrate_legacy(claude_text, title_to_rel, plugin_root)
     requested = list(dict.fromkeys(requested_rules))
     for rel, ver in migrated.items():
         manifest["rules"].setdefault(rel, ver)
@@ -758,12 +793,44 @@ def self_test():
     assert merge_hooks(bad_hooks, "python") == "error"
 
     # migrate_legacy: recognized block moved, unrecognized kept + reported
+    legacy_plugin = Path(tempfile.mkdtemp())
+    (legacy_plugin / "rules").mkdir()
+    (legacy_plugin / "rules" / "FOO.md").write_text(
+        "# Version\n1\n\n# Foo Rules\n\nnew body\n", encoding="utf-8")
     title_to_rel = {"# Foo Rules": "FOO.md"}
     claude_src = "Preamble.\n\n# Version\n1\n\n# Foo Rules\n\nold body\n\n# Version\n1\n\n# Custom Section\n\nkeep me\n"
-    new_text, migrated_map, unrecognized = migrate_legacy(claude_src, title_to_rel)
+    new_text, migrated_map, unrecognized = migrate_legacy(claude_src, title_to_rel, legacy_plugin)
     assert migrated_map == {"FOO.md": 1}, migrated_map
     assert unrecognized == ["# Custom Section"], unrecognized
     assert "Foo Rules" not in new_text and "Custom Section" in new_text and "Preamble." in new_text
+
+    # migrate_legacy regression: a recognized block whose OWN text runs to EOF
+    # (real-world cause: it's the last '# Version' block, so parse_managed has
+    # no next-block boundary) carries a trailing '##' project section that is
+    # NOT part of the rule source. That section must survive, not be deleted
+    # whole along with the rule content.
+    (legacy_plugin / "rules" / "BAR.md").write_text(
+        "# Version\n1\n\n# Bar Rules\n\nrule body\n", encoding="utf-8")
+    title_to_rel_bar = {"# Bar Rules": "BAR.md"}
+    claude_src_tail = (
+        "Preamble.\n\n"
+        "# Version\n1\n\n# Bar Rules\n\nold rule body\n\n"
+        "## Project Notes\n\nkeep me too\n"
+    )
+    new_text_tail, migrated_tail, _ = migrate_legacy(claude_src_tail, title_to_rel_bar, legacy_plugin)
+    assert migrated_tail == {"BAR.md": 1}, migrated_tail
+    assert "old rule body" not in new_text_tail and "Bar Rules" not in new_text_tail, new_text_tail
+    assert "## Project Notes" in new_text_tail and "keep me too" in new_text_tail, new_text_tail
+    assert "Preamble." in new_text_tail, new_text_tail
+
+    # migrate_legacy: source file missing (rel recorded but unreadable) must
+    # keep the whole block rather than silently delete unknown content.
+    title_to_rel_missing = {"# Baz Rules": "BAZ_MISSING.md"}
+    claude_src_missing = "# Version\n1\n\n# Baz Rules\n\nbody\n\n## Something\n\nstuff\n"
+    new_text_missing, migrated_missing, _ = migrate_legacy(
+        claude_src_missing, title_to_rel_missing, legacy_plugin)
+    assert migrated_missing == {"BAZ_MISSING.md": 1}, migrated_missing
+    assert "body" in new_text_missing and "## Something" in new_text_missing and "stuff" in new_text_missing
 
     # end-to-end run(): idempotent re-run, then a version bump only touches one block
     project = Path(tempfile.mkdtemp())
