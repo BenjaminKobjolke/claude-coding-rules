@@ -1,5 +1,5 @@
 # Version
-11
+12
 
 Increase this version number whenever this rule file changes.
 
@@ -33,6 +33,17 @@ are **mutually exclusive** — at most one is enabled at a time:
 Read precedence if both markers somehow end up `enabled`: Codex wins, then
 DeepSeek, then the self-fallback.
 
+**Self-fallback in a subagent.** When neither backend is enabled, prefer
+running each fallback skill in a subagent (Agent/Task tool, `general-purpose`
+type) rather than inline — the skill's file reads and reasoning stay out of
+the main context window. The subagent runs the skill and returns **only**
+its summary (and the list of files it changed). Any file edits the skill
+makes (plan file, code) persist, so the main agent picks them up.
+
+Exceptions that MUST stay in the main context: `/plan:dry-checked` (it
+reloads the adjusted plan INTO context) and restating the
+Definition-of-Done / DRY gate aloud.
+
 **Graphify preamble (optional).** If this project's `CODING_RULES.md` includes
 the graphify addon, prepend its graphify delegate preamble to every `<PROMPT>`
 below before invoking the backend CLI (see the graphify addon's "Delegated
@@ -57,13 +68,15 @@ plan DRY check
   delegate enabled (codex or deepseek — run <PROMPT> via that backend's CLI, see Delegation backends above; prepend graphify preamble if applicable):
     <PROMPT> = "FULL PATH TO PLAN - Can you check the plan for DRY opportunities and if you find any, apply them to the original plan file. Only edit the plan file — do NOT modify any source code or implement the plan. Always add a summary at the end called SUMMARY DRY — if you made changes, describe what and why; if you found nothing, write 'No DRY opportunities found.'"
   delegate disabled:
-    /plan:dry <plan-file>
+    run /plan:dry <plan-file> in a subagent (see "Self-fallback in a
+    subagent"); inline only if a subagent isn't available.
 
 plan convention check
   delegate enabled (codex or deepseek — run <PROMPT> via that backend's CLI, see Delegation backends above; prepend graphify preamble if applicable):
     <PROMPT> = "FULL PATH TO PLAN $convention-check - If you want to make any changes, apply them to the original plan file. Only edit the plan file — do NOT modify any source code or implement the plan. Always add a summary at the end called SUMMARY CONVENTION CHECK — if you made changes, describe what and why; if you found nothing, write 'No convention issues found.'"
   delegate disabled:
-    /convention:check — apply findings to the plan file
+    run /convention:check in a subagent (see note) — apply findings to the
+    plan file
 
 /plan:dry-checked    reload the DRY and convention adjusted plan
 
@@ -86,7 +99,8 @@ post-implementation DRY audit — scope is ONLY the changed-files file above
     <PROMPT> = "Read FULL PATH TO CHANGED-FILES FILE and check ONLY the files listed there for DRY opportunities. Do not use git status or git diff to widen the scope — other sessions may have concurrent uncommitted changes. Do NOT modify any code. Write your suggestions to <plan-file-path-without-.md>-post-implementation-check.md (next to the plan, same naming as the changed-files file), overwriting the file if it already exists. Include for each finding the affected files and a short rationale. Always write the file, even if you found nothing — in that case write a SUMMARY block stating 'No DRY opportunities found.'"
     then read that post-implementation-check file, validate each finding, and apply the valid ones. Bring a finding to the user only if a question arises — otherwise apply silently.
   delegate disabled:
-    /dry:check <files from the changed-files file, as pathspec>
+    run /dry:check <files from the changed-files file, as pathspec> in a
+    subagent (see note)
 
 Post-Feature Verification + Post-Implementation Code Analysis (project-specific, below)
 
@@ -117,8 +131,8 @@ Before the first edit, state in chat what "done" means for THIS change:
 - [ ] Scope: <one line — what changes, what does not>
 - [ ] Reuse: <existing function/component this builds on, with path>
 - [ ] DRY gate cleared (above)
-- [ ] `/dry:check <session changed-files>` clean (scoped to the changed-files file, never bare)
-- [ ] `/verify:after-change` green (tests + analysis)
+- [ ] `/dry:check <session changed-files>` clean (scoped to the changed-files file, never bare; may run via subagent)
+- [ ] `/verify:after-change` green (tests + analysis; may run via subagent)
 
 ### Post-implementation DRY audit — paste-in template
 
@@ -141,7 +155,8 @@ Bug fixes use a shorter variant (no plan-DRY phase):
 
 ```
 bugs:fix
-  → /verify:after-change
+  → /verify:after-change  (run in a subagent — see "Self-fallback in a
+    subagent")
 ```
 
 ---
