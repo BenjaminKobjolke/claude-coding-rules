@@ -1,5 +1,5 @@
 # Version
-12
+13
 
 Increase this version number whenever this rule file changes.
 
@@ -108,6 +108,10 @@ refresh graphify graph — only if the graphify addon is present in this project
   /graphify <code-dir> --directed   → writes root graphify-out/, verify directed: true
   (see the graphify addon's "Refreshing after a code change" section for the
    directed-flow caveats: never the bare `graphify update`, multi-path merge check)
+  Also copy the `graphify_update.bat` template (in `ai_rules_addons/`) into the
+  project's `tools/` and set its `CODE_DIR` — a no-AI bat to manually smoke-test
+  the graph (see the addon's "Manual test bat" section). Not a substitute for the
+  directed skill rebuild above.
 
 ```
 
