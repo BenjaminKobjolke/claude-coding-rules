@@ -70,6 +70,13 @@ Merge rules:
   allow list, change nothing.
 <!-- claude-code-only:end -->
 
+5. **Keep the manifest in sync.** If `<project>/coding-rules.json` exists, set
+   its `delegation` field to `"codex"` (parse the JSON, set the one field, write
+   it back; leave every other key untouched). If the file does not exist, skip —
+   `/coding-rules:apply` will create it. This is what prevents a later
+   `/coding-rules:apply` from reusing a stale `delegation` value and silently
+   flipping this marker back.
+
 ## off
 
 Set the marker to `<!-- codex: disabled -->` (same placement rules as `on`).
@@ -79,6 +86,11 @@ The workflow steps then fall back to `/plan:dry`, `/convention:check`, and
 Leave any `"Bash(codex exec:*)"` / `"PowerShell(codex exec:*)"` permission
 entries in `.claude/settings.local.json` untouched — they are harmless while
 disabled and save a step on re-enable. Mention this to the user.
+
+Then keep the manifest in sync: if `<project>/coding-rules.json` exists and its
+`delegation` is currently `"codex"`, set it to `"neither"` (parse, set, write
+back; leave other keys untouched). If DeepSeek is separately enabled, that
+skill owns the field — do not clobber a `"deepseek"` value here.
 
 ## status
 

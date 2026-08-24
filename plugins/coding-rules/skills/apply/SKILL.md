@@ -32,11 +32,25 @@ explicit opt-out signal instead of silently re-adding it).
 
 ## Delegation choice
 
-If `<project>/coding-rules.json` exists and has a `delegation` field, reuse it
-— do not re-ask. Otherwise ask the user: "Delegate the DRY and convention
-checks in this project to Codex, DeepSeek, or neither (Claude performs those
-checks itself)?" Map the answer to `codex`, `deepseek`, or `neither` for the
-`--delegation` flag below.
+The live `<!-- codex: ... -->` / `<!-- deepseek: ... -->` markers in
+`CODING_RULES.md` are the source of truth — `/coding-rules:codex` and
+`/coding-rules:deepseek` set them directly, and they, not the manifest, drive
+the workflow. Resolve in this order:
+
+1. **If `CODING_RULES.md` exists and already carries a delegation marker**
+   (either backend `enabled`, or both `disabled`), pass `--delegation keep`.
+   apply.py then preserves whatever the markers currently say — so a manifest
+   whose `delegation` field drifted out of sync (e.g. a toggle skill from an
+   older version that didn't update it) can never flip the live marker back.
+2. **Else if `<project>/coding-rules.json` exists with a `delegation` field**,
+   reuse that value (`codex` / `deepseek` / `neither`) — do not re-ask.
+3. **Else ask** the user: "Delegate the DRY and convention checks in this
+   project to Codex, DeepSeek, or neither (Claude performs those checks
+   itself)?" Map the answer to `codex`, `deepseek`, or `neither`.
+
+Pass the resolved value to the `--delegation` flag below. apply.py rewrites the
+manifest's `delegation` to the resolved value either way, so `keep` also
+self-heals a drifted manifest.
 
 ## Fast path — `apply.py`
 
