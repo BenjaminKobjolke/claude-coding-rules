@@ -2,3 +2,5 @@ __pycache__/
 *.pyc
 tmp/commit_msg.tmp
 claude-plans/
+.claude/
+/PLAN_*.md
