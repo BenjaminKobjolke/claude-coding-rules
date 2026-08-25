@@ -1,5 +1,5 @@
 # Version
-1
+2
 
 Increase this version number whenever this rule file changes.
 
@@ -1233,6 +1233,42 @@ Minimize unnecessary widget rebuilds to maintain smooth performance:
 - Extract subtrees into separate widgets to limit rebuild scope
 - Avoid building large widget trees inside a single `build` method
 - Use `BlocSelector` or `BlocBuilder` with `buildWhen` to rebuild only when relevant state changes
+
+---
+
+## Respect System Insets (SafeArea)
+
+Screen-level content must never render underneath the system UI — the status bar,
+the notch/cutout, or the bottom navigation/gesture bar. Otherwise bottom controls
+(a Save button, an FAB, the last list item) sit partly behind the Android nav bar
+and are hard or impossible to tap.
+
+- **Wrap the `Scaffold` `body` in a `SafeArea`** for any screen whose content can
+  reach a screen edge — especially scrollable bodies (`ListView`, `SingleChildScrollView`,
+  `Column` with a bottom button). The `AppBar` already handles the top inset; the
+  bottom inset is the one that bites.
+
+  ```dart
+  // Anti-pattern: bottom button scrolls under the nav bar
+  body: ListView(padding: const EdgeInsets.all(16), children: [...]),
+
+  // Correct: SafeArea insets the scroll view above the system bars
+  body: SafeArea(
+    child: ListView(padding: const EdgeInsets.all(16), children: [...]),
+  ),
+  ```
+
+- `EdgeInsets` padding is **not** a substitute — a hardcoded padding value does not
+  track the device's actual inset (varies by phone, gesture vs button nav, landscape).
+- **Don't double-inset.** A `Scaffold` `appBar` already consumes the top inset; if you
+  keep `SafeArea` defaults (`top: true`) under an `AppBar` it's harmless (inset is
+  already zero there), but don't also add manual top padding on top of it.
+- For a body behind a keyboard, `Scaffold.resizeToAvoidBottomInset` (default `true`)
+  handles the keyboard; `SafeArea` handles the persistent system bars. They are
+  separate concerns — keep both defaults on unless you have a reason not to.
+- Full-bleed content (a background image, an edge-to-edge map) is the deliberate
+  exception: opt out per-edge (`SafeArea(bottom: false, ...)`) rather than dropping
+  `SafeArea` entirely, so only the intended edge bleeds.
 
 ---
 
