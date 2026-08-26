@@ -1,5 +1,5 @@
 # Version
-13
+14
 
 Increase this version number whenever this rule file changes.
 
@@ -108,6 +108,22 @@ refresh graphify graph — only if the graphify addon is present in this project
   /graphify <code-dir> --directed   → writes root graphify-out/, verify directed: true
   (see the graphify addon's "Refreshing after a code change" section for the
    directed-flow caveats: never the bare `graphify update`, multi-path merge check)
+  REBUILD AT THE SCOPE THE EXISTING GRAPH ALREADY HAS, not at whatever
+  `<code-dir>` suggests. Check it first: group `graphify-out/graph.json` nodes by
+  the first path segment of their `source_file`. A graph built from the repo root
+  typically holds `docs/`, `tools/` and root `*.md` nodes — often the ones that
+  answer "how does X work" rather than "where is X defined" — and a narrower
+  rebuild deletes every one of them. graphify's shrink guard catches that and
+  refuses the write: re-run at the original scope, never force past it.
+  The scan root lives in `graphify-out/.graphify_root`, and EVERY `/graphify
+  <path>` run overwrites it. So one wrong-path invocation leaves it pointing at a
+  subtree the graph was not built from, and a later bare `graphify update`
+  rescans only that subtree and reads every file outside it as deleted. After any
+  rebuild, confirm `.graphify_root` matches the scope actually built.
+  It cannot be committed to carry the scope across clones — it stores an absolute
+  path, and `graphify-out` is gitignored. Record the intended scan root in the
+  project's CLAUDE.md instead (that file also survives `/coding-rules:apply`,
+  which rewrites CODING_RULES.md).
   Also copy the `graphify_update.bat` template (in `ai_rules_addons/`) into the
   project's `tools/` and set its `CODE_DIR` — a no-AI bat to manually smoke-test
   the graph (see the addon's "Manual test bat" section). Not a substitute for the
