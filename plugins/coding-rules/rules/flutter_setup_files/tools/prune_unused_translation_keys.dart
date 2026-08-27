@@ -1,124 +1,131 @@
 // Prune unused TK constants from lib/config/translation_keys/tk_*.dart.
 //
-// Recomputes the "unused" set the same way `check_translation_keys.dart`
-// does, then rewrites each sub-file without the dead declarations.
-// Preserves class shell and section comments. Idempotent.
+// Uses the same "referenced" rule as check_translation_keys.dart (shared via
+// translation_key_audit.dart), then drops the dead declarations line by line.
+// Untouched lines keep their exact bytes, so the prune is not buried in
+// formatting churn and mixed CRLF/LF files survive. Idempotent.
 //
-// Run: `fvm dart run tools/prune_unused_translation_keys.dart`
+// Run: `tools\prune_unused_translation_keys.bat`
+//      `tools\prune_unused_translation_keys.bat --dry-run`
+//
+// This rewrites source — commit first.
 
 import 'dart:io';
 
-void main() async {
+import 'translation_key_audit.dart';
+
+/// `  static const String foo = 'a.b';`
+final _declRe =
+    RegExp(r"^\s*static\s+const\s+String\s+(\w+)\s*=\s*'([^']+)'\s*;\s*$");
+
+/// First line of the wrapped form: `  static const String foo =`
+final _declHeadRe = RegExp(r"^\s*static\s+const\s+String\s+(\w+)\s*=\s*$");
+
+/// Second line of the wrapped form: `      'a.b';`
+final _declTailRe = RegExp(r"^\s*'([^']+)'\s*;\s*$");
+
+final _classRe = RegExp(r'^\s*class\s+(\w+)\s*\{');
+final _commentRe = RegExp(r'^\s*//');
+final _closeBraceRe = RegExp(r'^\s*\}');
+
+void main(List<String> args) async {
+  final dryRun = args.contains('--dry-run');
   final root = Directory.current.path;
 
-  // 1. Parse TK files: collect (file, className, name, fullLine).
-  final tkDir = Directory('$root/lib/config/translation_keys');
-  final declRe =
-      RegExp(r"^(\s*)static\s+const\s+String\s+(\w+)\s*=\s*'([^']+)'\s*;\s*$");
-  final classRe = RegExp(r'^\s*class\s+(\w+)\s*\{');
-  final tkFiles = <File>[];
-  final tkConsts = <_Decl>[];
-  for (final ent in tkDir.listSync()) {
-    if (ent is! File || !ent.path.endsWith('.dart')) continue;
-    tkFiles.add(ent);
-    // Collapse multi-line `static const String X =\n      'value';` decls.
-    final normalized = ent.readAsStringSync().replaceAllMapped(
-          RegExp(
-            r"(static\s+const\s+String\s+\w+\s*=)\s*\r?\n\s*('[^']+'\s*;)",
-            multiLine: true,
-          ),
-          (m) => '${m.group(1)} ${m.group(2)}',
-        );
-    if (normalized != ent.readAsStringSync()) {
-      ent.writeAsStringSync(normalized);
-    }
+  final tkFiles = Directory('$root/lib/config/translation_keys')
+      .listSync()
+      .whereType<File>()
+      .where((f) => f.path.endsWith('.dart'))
+      .toList();
+  final references = (await scanCallers(root)).references;
+  var unusedCount = 0;
+
+  for (final file in tkFiles) {
+    // Split on '\n' rather than readAsLines() so each line keeps its own '\r'.
+    final lines = file.readAsStringSync().split('\n');
+    final drop = <int>{};
     String? className;
-    final lines = ent.readAsLinesSync();
+
     for (var i = 0; i < lines.length; i++) {
-      final cm = classRe.firstMatch(lines[i]);
+      final cm = _classRe.firstMatch(lines[i]);
       if (cm != null) {
         className = cm.group(1);
         continue;
       }
-      final dm = declRe.firstMatch(lines[i]);
-      if (dm != null && className != null) {
-        tkConsts.add(_Decl(ent.path, className, dm.group(2)!, i));
-      }
-    }
-  }
+      if (className == null) continue;
 
-  // 2. Find referenced names by walking lib/ + test/.
-  final tkRefs = <String>{};
-  final refRe = RegExp(r'\b(TK[A-Za-z]+)\.([A-Za-z_][A-Za-z0-9_]*)\b');
-  for (final r in [Directory('$root/lib'), Directory('$root/test')]) {
-    if (!r.existsSync()) continue;
-    await for (final ent in r.list(recursive: true, followLinks: false)) {
-      if (ent is! File || !ent.path.endsWith('.dart')) continue;
-      final p = ent.path.replaceAll('\\', '/');
-      if (p.contains('/lib/config/translation_keys/')) continue;
-      if (p.endsWith('/lib/config/translation_keys.dart')) continue;
-      for (final m in refRe.allMatches(ent.readAsStringSync())) {
-        tkRefs.add('${m.group(1)}.${m.group(2)}');
+      String? name;
+      String? value;
+      var span = 1;
+      final flat = _declRe.firstMatch(lines[i]);
+      if (flat != null) {
+        name = flat.group(1);
+        value = flat.group(2);
+      } else {
+        final head = _declHeadRe.firstMatch(lines[i]);
+        final tail = i + 1 < lines.length ? _declTailRe.firstMatch(lines[i + 1]) : null;
+        if (head == null || tail == null) continue;
+        name = head.group(1);
+        value = tail.group(1);
+        span = 2;
       }
-    }
-  }
+      if (references.contains('$className.$name')) continue;
 
-  // 3. Determine unused.
-  final unusedByFile = <String, Set<int>>{};
-  var unusedCount = 0;
-  for (final d in tkConsts) {
-    if (!tkRefs.contains('${d.className}.${d.name}')) {
-      unusedByFile.putIfAbsent(d.filePath, () => <int>{}).add(d.lineIdx);
+      for (var k = 0; k < span; k++) {
+        drop.add(i + k);
+      }
       unusedCount++;
+      if (dryRun) stderr.writeln('  would remove $className.$name  =  $value');
     }
-  }
-  stderr.writeln('Found $unusedCount unused TK constants.');
+    if (drop.isEmpty || dryRun) continue;
 
-  // 4. Rewrite each TK file dropping the marked lines.
-  // Also collapse runs of orphan section comments (a comment immediately
-  // followed by another section comment or a class-close brace).
-  for (final f in tkFiles) {
-    final drop = unusedByFile[f.path];
-    if (drop == null || drop.isEmpty) continue;
-    final lines = f.readAsLinesSync();
-    final kept = <String>[];
-    for (var i = 0; i < lines.length; i++) {
-      if (drop.contains(i)) continue;
-      kept.add(lines[i]);
-    }
-    // Second pass: drop section-only comments (lines starting with `  //`)
-    // that are followed by another comment or by `}`.
-    final pruned = <String>[];
-    for (var i = 0; i < kept.length; i++) {
-      final cur = kept[i].trimRight();
-      final isComment = RegExp(r'^\s*//').hasMatch(cur);
-      if (isComment) {
-        // peek forward to next non-blank
-        var j = i + 1;
-        while (j < kept.length && kept[j].trim().isEmpty) {
-          j++;
-        }
-        if (j >= kept.length) {
-          continue; // trailing comment before EOF
-        }
-        final next = kept[j];
-        if (RegExp(r'^\s*//').hasMatch(next) ||
-            RegExp(r'^\s*\}').hasMatch(next)) {
-          continue; // orphan section header
-        }
-      }
-      pruned.add(kept[i]);
-    }
-    f.writeAsStringSync('${pruned.join('\n')}\n');
-    stderr.writeln('Pruned ${drop.length} from ${f.path}');
+    final kept = [
+      for (var i = 0; i < lines.length; i++)
+        if (!drop.contains(i)) lines[i],
+    ];
+    file.writeAsStringSync(_dropDanglingComments(kept).join('\n'));
+    stderr.writeln('Pruned ${drop.length} line(s) from ${file.path}');
   }
-  stderr.writeln('Done.');
+
+  stderr.writeln(dryRun
+      ? 'Found $unusedCount unused TK constants (dry run, nothing written).'
+      : 'Done. Removed $unusedCount unused TK constants.');
 }
 
-class _Decl {
-  _Decl(this.filePath, this.className, this.name, this.lineIdx);
-  final String filePath;
-  final String className;
-  final String name;
-  final int lineIdx;
+/// Drops section-header comments left pointing at nothing.
+///
+/// Works on whole runs of consecutive comment lines, not single lines — a
+/// multi-line `///` doc comment is one run and must survive intact. A run goes
+/// only when the next non-blank line is another comment run, the class-closing
+/// brace, or end of file.
+List<String> _dropDanglingComments(List<String> lines) {
+  final drop = <int>{};
+  var i = 0;
+  while (i < lines.length) {
+    if (!_commentRe.hasMatch(lines[i])) {
+      i++;
+      continue;
+    }
+    var end = i;
+    while (end + 1 < lines.length && _commentRe.hasMatch(lines[end + 1])) {
+      end++;
+    }
+    var next = end + 1;
+    while (next < lines.length && lines[next].trim().isEmpty) {
+      next++;
+    }
+    final dangling = next >= lines.length ||
+        _commentRe.hasMatch(lines[next]) ||
+        _closeBraceRe.hasMatch(lines[next]);
+    if (dangling) {
+      for (var k = i; k <= end; k++) {
+        drop.add(k);
+      }
+    }
+    i = end + 1;
+  }
+  return [
+    for (var i = 0; i < lines.length; i++)
+      if (!drop.contains(i)) lines[i],
+  ];
 }

@@ -1,5 +1,5 @@
 # Version
-3
+4
 
 Increase this version number whenever this rule file changes.
 
@@ -395,19 +395,46 @@ TK constants for raw literals that already have a matching i18n leaf;
 remaining "broken" entries (raw literal whose i18n leaf is missing too)
 must be resolved by hand.
 
+Copy the whole set — the three scripts below plus `translation_key_audit.dart`
+and the `.bat` wrappers. Only two constants in `check_translation_keys.dart`
+are per-project: `_topKeyToClass` (top-level i18n key → owning `TK*` class)
+and `_packageName`.
+
 Companion tooling lives next to the audit script:
 
+- `translation_key_audit.dart` — the shared detector every script imports.
+  Layout, TK parsing, and the caller scan live here so a pruner can never
+  drift from the audit and delete keys the audit considers live.
 - `prune_unused_translation_keys.dart` — deletes dead TK constants from
   `lib/config/translation_keys/tk_*.dart`. Safe because the audit
-  guarantees zero references.
+  guarantees zero references. Drops only the declaration lines, leaving the
+  rest of the file byte-identical.
 - `prune_orphan_i18n_leaves.dart` — removes i18n leaves no caller
-  references (TK or raw literal), and appends them to
-  `tools/attributes_to_remove.json` so the translator can strip them from
-  the remaining locale files.
+  references (TK or raw literal). When `tools/attributes_to_remove.json`
+  exists, removed paths are merged into it so a translator batch can strip
+  them from locale files the script does not own; projects without that
+  batch never create the file.
 - `split_translation_keys.dart` — when the project's `TK` class grows past
   ~500 lines, split it into one `TKModule` class per top-level i18n key
   group with a barrel re-export. The split keeps every existing
   `TK.foo`-style call site valid after a one-shot codemod.
+
+Two detection rules exist because a naive audit reports false positives on
+both, and a pruner acting on them destroys working code:
+
+- **`...Prefix` constants.** A constant whose name ends in `Prefix` holds a
+  partial path completed at runtime — `tr('${TKStats.weekStatusPrefix}$s')`.
+  It is treated as matching any leaf below its value, so it is not "missing"
+  and the leaves it reaches are not orphans.
+- **The `_tr` wrapper.** Widgets commonly define
+  `String _tr(String key) => AppLocalizations.tr(key);` and call `_tr(...)`.
+  The raw-literal scan matches both spellings; matching only
+  `AppLocalizations.tr` makes category 4 blind to most of the codebase.
+
+Both i18n layouts are auto-detected at startup — modular
+(`assets/i18n/modules.json` + `assets/i18n/<module>/<locale>.json`) and
+single-file (`assets/i18n/<locale>.json`). Locales come from
+`assets/i18n/languages.json`.
 
 ---
 
