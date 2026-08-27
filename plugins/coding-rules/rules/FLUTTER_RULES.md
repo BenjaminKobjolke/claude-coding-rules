@@ -1,5 +1,5 @@
 # Version
-2
+3
 
 Increase this version number whenever this rule file changes.
 
@@ -569,6 +569,23 @@ tools\build_release.bat
 # Update dependencies
 update.bat
 ```
+
+---
+
+## Approved Libraries
+
+Before implementing any new feature, **check
+[`flutter_setup_files/LIBRARIES.md`](flutter_setup_files/LIBRARIES.md)** — it lists the approved
+third-party libraries, their confirmed versions, and a reference implementation for each.
+
+- If a listed library already covers the job, use it. Do not hand-roll an equivalent and do not
+  introduce a competing package for the same concern.
+- If nothing listed covers it, confirm the version with the user (see `COMMON_RULES.md` →
+  "Confirm Dependency Versions"), then add the library to `LIBRARIES.md` with a pointer to the
+  first real implementation, so the next project picks it up automatically.
+
+This is the same "check before you build" rule as `COMMON_RULES.md` → "Reusable Tooling",
+applied to dependencies instead of scripts.
 
 ---
 
