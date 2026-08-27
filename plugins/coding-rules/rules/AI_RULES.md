@@ -1,5 +1,5 @@
 # Version
-16
+17
 
 Increase this version number whenever this rule file changes.
 
@@ -104,34 +104,20 @@ post-implementation DRY audit — scope is ONLY the changed-files file above
 
 Post-Feature Verification + Post-Implementation Code Analysis (project-specific, below)
 
-refresh graphify graph — only if the graphify addon is present in this project's CODING_RULES.md:
-  /graphify <code-dir> --directed   → writes root graphify-out/, verify directed: true
-  (see the graphify addon's "Refreshing after a code change" section for the
-   directed-flow caveats: never the bare `graphify update`, multi-path merge check)
-  REBUILD AT THE SCOPE THE EXISTING GRAPH ALREADY HAS, not at whatever
-  `<code-dir>` suggests. Check it first: group `graphify-out/graph.json` nodes by
-  the first path segment of their `source_file`. A graph built from the repo root
-  typically holds `docs/`, `tools/` and root `*.md` nodes — often the ones that
-  answer "how does X work" rather than "where is X defined" — and a narrower
-  rebuild deletes every one of them. graphify's shrink guard catches that and
-  refuses the write: re-run at the original scope, never force past it.
-  Excluding `docs/` via `.graphifyignore` is the same mistake wearing a different
-  hat: it is the prose that answers "how does X work", and a code-only graph
-  answers symbol lookups a grep would have found anyway. Keep docs in.
-  The scan root lives in `graphify-out/.graphify_root`, and EVERY `/graphify
-  <path>` run overwrites it. So one wrong-path invocation leaves it pointing at a
-  subtree the graph was not built from, and a later bare `graphify update`
-  rescans only that subtree and reads every file outside it as deleted. After any
-  rebuild, confirm `.graphify_root` matches the scope actually built.
-  It cannot be committed to carry the scope across clones — it stores an absolute
-  path, and `graphify-out` is gitignored. Record the intended scan root in the
-  project's CLAUDE.md instead (that file also survives `/coding-rules:apply`,
-  which rewrites CODING_RULES.md).
-  Also copy the `graphify_update.bat` template (in `ai_rules_addons/`) into the
-  project's `tools/` and set its `CODE_DIR` — a no-AI bat to manually smoke-test
-  the graph (see the addon's "Manual test bat" section). Not a substitute for the
-  directed skill rebuild above.
-
+refresh graphify graph — only if the graphify addon is present in this project's CODING_RULES.md
+  NEVER run this rebuild yourself in the main context: the graphify skill loads a
+  large instruction file and its build output into the window. Delegate it — the
+  rules it must follow live in the graphify addon's "Refreshing after a code
+  change" section, already copied into this project's CODING_RULES.md.
+  delegate enabled (codex or deepseek — run <PROMPT> via that backend's CLI, see Delegation backends above; prepend graphify preamble if applicable):
+    <PROMPT> = "Rebuild this project's graphify knowledge graph. Read the graphify section of CODING_RULES.md and follow its 'Refreshing after a code change' rules exactly, including the scope rules — rebuild at the scope the existing graph already has, never narrower. Run the graphify skill's directed rebuild from the repo root (/graphify <code-dir> --directed), writing to the root graphify-out/. Do NOT run a bare `graphify update`. If the graphify skill is not available to you, change nothing and reply exactly GRAPHIFY SKILL UNAVAILABLE. Otherwise end with a summary called SUMMARY GRAPHIFY stating the scan root built, whether graph.json has directed: true, and the node count before and after."
+  delegate disabled:
+    run the same rebuild in a subagent (see "Self-fallback in a subagent") with the
+    same instructions; it returns only the SUMMARY GRAPHIFY block.
+  then verify yourself — cheap, no skill load: root `graphify-out/graph.json` has
+  `directed: true`, and `graphify-out/.graphify_root` matches the scope that was
+  built. If the delegate replied GRAPHIFY SKILL UNAVAILABLE, or either check fails,
+  redo the rebuild via the subagent branch.
 ```
 
 ### DRY gate (precondition for implementing)

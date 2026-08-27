@@ -1,5 +1,5 @@
 # Version
-10
+11
 
 Increase this version number whenever this rule file changes.
 
@@ -142,6 +142,22 @@ nothing, silently degrading to grep. Harmless if the graph is not built yet:
 - Do NOT use the bare `graphify update <code-dir>` CLI — it has no `--directed` flag and writes a
   full UNDIRECTED graph into `<code-dir>/graphify-out/` (wrong location), desyncing the live
   graph. If that stray graph appears, delete `<code-dir>/graphify-out/graph.json` (keep `cache/`).
+- **Rebuild at the scope the existing graph already has**, not at whatever `<code-dir>` suggests.
+  Check it first: group `graphify-out/graph.json` nodes by the first path segment of their
+  `source_file`. A graph built from the repo root typically holds `docs/`, `tools/` and root
+  `*.md` nodes — often the ones that answer "how does X work" rather than "where is X defined" —
+  and a narrower rebuild deletes every one of them. graphify's shrink guard catches that and
+  refuses the write: re-run at the original scope, never force past it.
+- **Keep `docs/` in.** Excluding it via `.graphifyignore` is the same mistake wearing a different
+  hat: it is the prose that answers "how does X work", and a code-only graph answers symbol
+  lookups a grep would have found anyway.
+- **Confirm `.graphify_root` after every rebuild.** The scan root lives in
+  `graphify-out/.graphify_root`, and EVERY `/graphify <path>` run overwrites it. So one
+  wrong-path invocation leaves it pointing at a subtree the graph was not built from, and a later
+  bare `graphify update` rescans only that subtree and reads every file outside it as deleted.
+  It cannot be committed to carry the scope across clones — it stores an absolute path, and
+  `graphify-out/` is gitignored. Record the intended scan root in the project's `CLAUDE.md`
+  instead (that file also survives `/coding-rules:apply`, which rewrites `CODING_RULES.md`).
 - Verify after rebuild: `graph.json` has `directed: true` and lives in root `graphify-out/`.
   For a **multi-path merge**, also grep `graph.json` for a node-ID prefix belonging to a second
   scanned dir (e.g. `framework_`) to prove that dir actually landed — `directed: true` passes even
