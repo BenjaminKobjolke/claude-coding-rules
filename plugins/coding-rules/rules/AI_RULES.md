@@ -1,5 +1,5 @@
 # Version
-14
+16
 
 Increase this version number whenever this rule file changes.
 
@@ -115,6 +115,9 @@ refresh graphify graph — only if the graphify addon is present in this project
   answer "how does X work" rather than "where is X defined" — and a narrower
   rebuild deletes every one of them. graphify's shrink guard catches that and
   refuses the write: re-run at the original scope, never force past it.
+  Excluding `docs/` via `.graphifyignore` is the same mistake wearing a different
+  hat: it is the prose that answers "how does X work", and a code-only graph
+  answers symbol lookups a grep would have found anyway. Keep docs in.
   The scan root lives in `graphify-out/.graphify_root`, and EVERY `/graphify
   <path>` run overwrites it. So one wrong-path invocation leaves it pointing at a
   subtree the graph was not built from, and a later bare `graphify update`

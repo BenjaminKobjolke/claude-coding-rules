@@ -1,5 +1,5 @@
 # Version
-8
+10
 
 Increase this version number whenever this rule file changes.
 
