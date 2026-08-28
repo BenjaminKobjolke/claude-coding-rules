@@ -1,0 +1,105 @@
+; <App Name> - Windows installer.
+; TEMPLATE: replace every <...> placeholder before use.
+;
+; Built by tools\build_installer.bat, which passes VERSION, BUILD, SRCDIR and
+; OUTFILE as /D defines. VERSION/BUILD deliberately do NOT come from the exe's
+; version resource (fman reads them with !getdllversion): PyInstaller is invoked
+; here as a bare CLI with no --version-file, so there is no resource to read.
+; The bat is the single place that knows the release label.
+
+!ifndef VERSION
+  !error "VERSION not defined - build via tools\build_installer.bat, not makensis directly"
+!endif
+
+!define APPNAME   "<App Name>"
+!define EXENAME   "<AppExe>.exe"
+!define COMPANY   "<Company>"
+!define REGKEY    "Software\Microsoft\Windows\CurrentVersion\Uninstall\<AppExe>"
+!define LABEL     "${VERSION}_${BUILD}"
+
+; ponytail: no custom installer icon. assets\icon.png is a PNG and MUI_ICON needs
+; an .ico - add assets\icon.ico plus !define MUI_ICON if the default ever grates.
+
+Name "${APPNAME}"
+OutFile "${OUTFILE}"
+Unicode true
+SetCompressor /SOLID lzma
+
+; Per-user install, no admin, no UAC prompt. Not cosmetic: the frozen app resolves
+; DATA_ROOT as the exe's own folder, so its config and database
+; are written next to the exe - which a Program Files install cannot do unelevated.
+RequestExecutionLevel user
+InstallDir "$LOCALAPPDATA\<AppExe>"
+InstallDirRegKey HKCU "${REGKEY}" "InstallLocation"
+
+VIProductVersion "${VERSION}.${BUILD}"
+VIAddVersionKey "ProductName"     "${APPNAME}"
+VIAddVersionKey "CompanyName"     "${COMPANY}"
+VIAddVersionKey "FileDescription" "${APPNAME} Setup"
+VIAddVersionKey "FileVersion"     "${LABEL}"
+VIAddVersionKey "LegalCopyright"  "${COMPANY}"
+
+!include "MUI2.nsh"
+!insertmacro MUI_PAGE_DIRECTORY
+!insertmacro MUI_PAGE_COMPONENTS
+!insertmacro MUI_PAGE_INSTFILES
+!insertmacro MUI_UNPAGE_CONFIRM
+!insertmacro MUI_UNPAGE_INSTFILES
+!insertmacro MUI_LANGUAGE "English"
+
+; Overwriting a running exe fails with a locked-file error, and this app is
+; long-running by nature (a break can be on screen during an upgrade). taskkill
+; ships with Windows, so this needs no NSIS plugin. A non-zero exit just means
+; it was not running.
+!macro KillRunning
+  DetailPrint "Closing any running ${EXENAME}..."
+  nsExec::Exec 'taskkill /F /IM "${EXENAME}"'
+  Pop $0
+!macroend
+
+Section "${APPNAME}" SEC_APP
+  SectionIn RO
+  !insertmacro KillRunning
+
+  SetOutPath "$INSTDIR"
+  ; Exclude the app's own runtime files: compile_exe.bat builds into dist\, and
+  ; every local test run of that exe drops settings.json / sessions.db right
+  ; beside it (DATA_ROOT = exe folder). Without /x the installer would ship the
+  ; developer's machine config and recorded break statistics to every user.
+  File /r /x settings.json /x sessions.db "${SRCDIR}\*.*"
+
+  CreateShortCut "$SMPROGRAMS\${APPNAME}.lnk" "$INSTDIR\${EXENAME}"
+  WriteUninstaller "$INSTDIR\Uninstall.exe"
+
+  WriteRegStr HKCU "${REGKEY}" "DisplayName"     "${APPNAME}"
+  WriteRegStr HKCU "${REGKEY}" "DisplayVersion"  "${LABEL}"
+  WriteRegStr HKCU "${REGKEY}" "Publisher"       "${COMPANY}"
+  WriteRegStr HKCU "${REGKEY}" "DisplayIcon"     "$INSTDIR\${EXENAME}"
+  WriteRegStr HKCU "${REGKEY}" "InstallLocation" "$INSTDIR"
+  WriteRegStr HKCU "${REGKEY}" "UninstallString" '"$INSTDIR\Uninstall.exe"'
+  WriteRegDWORD HKCU "${REGKEY}" "NoModify" 1
+  WriteRegDWORD HKCU "${REGKEY}" "NoRepair" 1
+  ; Apps & Features shows this as the size; the frozen app's installed size in KB.
+  WriteRegDWORD HKCU "${REGKEY}" "EstimatedSize" <size-in-kb>
+SectionEnd
+
+Section /o "Desktop shortcut" SEC_DESKTOP
+  CreateShortCut "$DESKTOP\${APPNAME}.lnk" "$INSTDIR\${EXENAME}"
+SectionEnd
+
+Section "Uninstall"
+  !insertmacro KillRunning
+
+  Delete "$SMPROGRAMS\${APPNAME}.lnk"
+  Delete "$DESKTOP\${APPNAME}.lnk"
+  Delete "$INSTDIR\Uninstall.exe"
+  Delete "$INSTDIR\${EXENAME}"
+  RMDir /r "$INSTDIR\_internal"
+
+  ; settings.json and sessions.db are deliberately NOT deleted: sessions.db holds
+  ; the user's recorded break statistics and there is no other copy of it. RMDir
+  ; without /r leaves the folder standing whenever either file is still present.
+  RMDir "$INSTDIR"
+
+  DeleteRegKey HKCU "${REGKEY}"
+SectionEnd

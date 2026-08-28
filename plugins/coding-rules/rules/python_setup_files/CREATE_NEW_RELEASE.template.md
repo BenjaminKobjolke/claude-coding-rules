@@ -47,8 +47,12 @@ mandatory — without it non-English users see English.
 
 ```bat
 tools\build_increment.bat
-tools\<build-bat>
+tools\compile_exe.bat
+tools\build_installer.bat
 ```
+
+See **Windows Installer (NSIS)** in `PYTHON_RULES.md` — `compile_exe.bat`
+freezes, `build_installer.bat` packages; they are deliberately not chained.
 
 ## 5. In-app Release Notes view
 

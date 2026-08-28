@@ -15,6 +15,8 @@ Always read `${CLAUDE_PLUGIN_ROOT}/rules/COMMON_RULES.md` and `${CLAUDE_PLUGIN_R
 - Always: `COMMON_RULES.md` and `AI_RULES.md`
 - Language-specific rules: `PHP_RULES.md`, `PYTHON_RULES.md`, `CSHARP_RULES.md`, `FLUTTER_RULES.md`, `SVELTE_RULES.md`, `SCSS_RULES.md`, `ARDUINO_RULES.md`, `AUTOHOTKEY_RULES.md`, `UNITY_CSHARP_RULES.md`, `WORDPRESS_RULES.md`
 - Project-type rules: see `PROJECT_TYPES.md` for the overview, files in `project_type/`
+- Supplemental rules: `DESIGN_RULES.md` — include when the project has a user interface
+  (desktop, web, mobile, TUI); skip it for libraries, APIs, and headless tools
 - Optional addon rules in `ai_rules_addons/` — include only after the user opts in
 
 If `<project>/coding-rules.json` already exists, read it: its `rules` map is the

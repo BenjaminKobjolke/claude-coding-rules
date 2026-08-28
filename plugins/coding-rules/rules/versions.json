@@ -3,7 +3,7 @@
   "COMMON_RULES.md": 3,
   "AI_RULES.md": 18,
   "PHP_RULES.md": 1,
-  "PYTHON_RULES.md": 1,
+  "PYTHON_RULES.md": 3,
   "CSHARP_RULES.md": 1,
   "JAVASCRIPT_RULES.md": 1,
   "TYPESCRIPT_RULES.md": 1,
@@ -19,5 +19,6 @@
   "CREATE_NEW_RULES.md": 2,
   "project_type/FRONTEND.md": 1,
   "project_type/REST_API.md": 3,
-  "ai_rules_addons/graphify.md": 11
+  "ai_rules_addons/graphify.md": 11,
+  "DESIGN_RULES.md": 1
 }
