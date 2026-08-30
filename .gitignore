@@ -4,3 +4,5 @@ tmp/commit_msg.tmp
 claude-plans/
 .claude/
 /PLAN_*.md
+PLAN.md
+HANDOFF.md
