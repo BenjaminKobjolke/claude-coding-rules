@@ -1,5 +1,5 @@
 # Version
-4
+5
 
 Increase this version number whenever this rule file changes.
 
@@ -613,6 +613,23 @@ third-party libraries, their confirmed versions, and a reference implementation 
 
 This is the same "check before you build" rule as `COMMON_RULES.md` → "Reusable Tooling",
 applied to dependencies instead of scripts.
+
+---
+
+## App Icons
+
+Whenever icons are involved — setting up a new project's launcher icon, replacing
+existing art, adding a notification icon, or debugging one that renders wrong —
+**read [`flutter_setup_files/ICONS.md`](flutter_setup_files/ICONS.md) first.**
+
+House style is a **solid black background with simple white line art**. The guide
+covers why (an adaptive icon's background layer must be opaque, so transparent is
+not an option), the source-art layout, the `flutter_launcher_icons` config, and
+the separate white-on-transparent notification icon Android needs — pointing a
+notification at the launcher icon renders a featureless white blob in the status
+bar.
+
+Each project records its own paths and wiring in `docs/ICONS.md`.
 
 ---
 
