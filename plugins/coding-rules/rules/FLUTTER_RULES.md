@@ -1,5 +1,5 @@
 # Version
-5
+6
 
 Increase this version number whenever this rule file changes.
 
@@ -1330,6 +1330,75 @@ and are hard or impossible to tap.
 - Full-bleed content (a background image, an edge-to-edge map) is the deliberate
   exception: opt out per-edge (`SafeArea(bottom: false, ...)`) rather than dropping
   `SafeArea` entirely, so only the intended edge bleeds.
+
+---
+
+## Never Let a Widget Take Infinite Height in a Scroll View
+
+A scroll view hands its children **unbounded** constraints on the scroll axis
+(`maxHeight: infinity`). Greedy widgets resolve that by taking everything they are
+offered, so a widget that is correct inside a `Column` becomes an infinite-height
+child inside a `ListView`.
+
+The damage lands on a **different widget than the buggy one**: once a child reports
+infinite height, the list stops laying out and *every sibling below it is never
+built*. Those siblings produce no exception, no log, and no error widget — they
+simply do not exist. You end up reading the missing widget's code, which is correct.
+
+The greedy widgets, and what they do under unbounded constraints:
+
+| Inside a scroll view | Result |
+|---|---|
+| `Row(crossAxisAlignment: CrossAxisAlignment.stretch)` | children sized to `maxHeight` → **infinite** |
+| `height: double.infinity`, `SizedBox.expand` | infinite |
+| `Expanded` / `Flexible` / `Spacer` in a vertical parent | error |
+| `ListView` / `GridView` without `shrinkWrap: true` | error |
+
+```dart
+// Anti-pattern: fine in a Column, fatal in a ListView — and it silently
+// deletes every sibling below it.
+Row(
+  crossAxisAlignment: CrossAxisAlignment.stretch,
+  children: [Expanded(child: _Card()), Expanded(child: _Card())],
+)
+
+// Correct: IntrinsicHeight bounds the row, equal-height children preserved
+IntrinsicHeight(
+  child: Row(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [Expanded(child: _Card()), Expanded(child: _Card())],
+  ),
+)
+```
+
+Rules:
+
+- **Only a `Row` is at risk from `stretch`.** A `Column`'s cross axis is horizontal,
+  which is bounded — `CrossAxisAlignment.stretch` on a `Column` is fine.
+- **Bound it explicitly**: `IntrinsicHeight`, a fixed `SizedBox(height:)`, or
+  `AspectRatio`. Prefer `IntrinsicHeight` when children must match heights.
+- **Run every new screen once in a debug build before shipping a release APK.**
+  Debug asserts on this by name — `BoxConstraints forces an infinite height` — and
+  points at the offending widget. Release strips the assert and the failure goes
+  completely silent, which is what makes this class of bug expensive.
+- **Widget-test the composition, not just the widget.** Pump the widget in a
+  `ListView` *with a sibling after it* and assert both a finite height and that the
+  sibling was built. A widget tested alone passes while the screen is broken.
+
+  ```dart
+  await tester.pumpWidget(MaterialApp(home: Scaffold(
+    body: ListView(children: const [MyRow(), Text('below')]),
+  )));
+  expect(tester.takeException(), isNull);
+  expect(tester.getSize(find.byType(MyRow)).height.isFinite, isTrue);
+  expect(find.text('below'), findsOneWidget); // never built if MyRow is infinite
+  ```
+
+- **Suspect the siblings' constraints before the missing widget's own code.** A
+  widget that renders nothing and logs nothing is usually a victim, not the cause.
+- The default `ErrorWidget` sizes to `constraints.biggest`, so a *crash* in a list
+  child produces the same infinite blank block. A custom `ErrorWidget.builder` with a
+  bounded height and the exception text turns that into a visible, readable failure.
 
 ---
 

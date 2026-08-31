@@ -23,6 +23,7 @@ table below with a reference implementation, so the next project picks it up aut
 | `logarte` | latest | In-app network/log debugger |
 | `shared_preferences` | `^2.5.5` | Small key/value settings storage |
 | `flutter_dotenv` | `^5.1.0` | `.env` secrets loading (only when secrets exist) |
+| `flutter_screen_recording` | `^2.0.25` | Native screen recording (MediaProjection / ReplayKit) — used by the `automated_screenshot_connector` demo host |
 
 Versions are the last confirmed-good constraints. Verify against pub.dev before pinning a new
 project — do not assume.
@@ -71,6 +72,14 @@ full setup, the `TK` constants convention, and the key-audit tooling in `tools/`
 
 Cubit only (no events, no full BLoC). States are immutable, `Equatable`, and use `copyWith`.
 See [`../FLUTTER_RULES.md`](../FLUTTER_RULES.md) → "State Management (Cubit)".
+
+## Screen recording — `flutter_screen_recording`
+
+Used by the Flutter connector of `automated-application-screenshots` (network demo mode) to
+record one mp4 per demo on the device. Pins `flutter_foreground_task ^9.1.0`; an app already on
+`flutter_foreground_task ^11` needs `dependency_overrides: flutter_foreground_task: ^11.0.1`
+(same Dart API, verified in `block-screen-app`). Android 14+ asks for consent before every
+recording. Reference: `automated-application-screenshots-flutter-connector/lib/src/screen_recorder.dart`.
 
 ## Everything else
 
