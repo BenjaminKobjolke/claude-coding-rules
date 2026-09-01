@@ -1,5 +1,5 @@
 # Version
-18
+19
 
 Increase this version number whenever this rule file changes.
 
@@ -83,14 +83,39 @@ rules make that impossible and leave a debug trail when it happens anyway.
   Overwrite the log per run. On any failure, report the log path to the user
   in one line — that is the debug handle.
 
-- **Success check + fallback.** A delegated step counts as done only if its
-  required SUMMARY block is present (`SUMMARY DRY`, `SUMMARY CONVENTION
-  CHECK`, `SUMMARY GRAPHIFY`, or the post-implementation check file). Timeout,
-  non-zero exit, missing SUMMARY, or a `## DELEGATE QUESTIONS` heading all
-  count as failure. On failure: do NOT retry — report one line plus the log
-  path, then run that step's `delegate disabled` branch (subagent). If the
-  delegate wrote `## DELEGATE QUESTIONS`, answer those questions yourself in
-  the fallback run, or surface them to the user if they need a decision.
+- **Success check.** A delegated step counts as done only if its required
+  SUMMARY block is present (`SUMMARY DRY`, `SUMMARY CONVENTION CHECK`,
+  `SUMMARY GRAPHIFY`, or the post-implementation check file). A permission
+  block/denial, timeout, non-zero exit, missing SUMMARY, or a
+  `## DELEGATE QUESTIONS` heading all count as failure. Never retry a failed
+  delegate call. How to handle the failure depends on its kind:
+
+- **Permission failure — STOP and ask the user.** If a backend is enabled but
+  the call never ran because it was blocked or denied (permission prompt
+  denied, the permission classifier blocked it, or the error is an
+  approval/permission error rather than backend output), do NOT run the
+  `delegate disabled` branch, do NOT perform the check yourself, and do NOT
+  perform any other action designated for the delegate. Report in one line
+  which command was blocked and which permission entry is likely missing
+  (`Bash(codex exec:*)` / `PowerShell(codex exec:*)`, or the matching
+  `reasonix run` pair), then ASK the user how to proceed, offering:
+
+  1. fix the permissions (`/coding-rules:codex on` / `/coding-rules:deepseek on`)
+     and re-run the delegated step,
+  2. run the `delegate disabled` fallback in a subagent this once,
+  3. skip the step.
+
+  Wait for the answer. The workflow stays paused — the DRY gate is NOT cleared,
+  so implementing does not start.
+
+- **Other failures — fallback.** For timeout, non-zero exit, missing SUMMARY,
+  or `## DELEGATE QUESTIONS`: report one line plus the log path, then run that
+  step's `delegate disabled` branch (subagent). If the delegate wrote
+  `## DELEGATE QUESTIONS`, answer those questions yourself in the fallback run,
+  or surface them to the user if they need a decision.
+
+These rules apply to EVERY delegated step below — plan DRY check, convention
+check, post-implementation DRY audit and the graphify refresh.
 
 ## Feature / Change Workflow
 
