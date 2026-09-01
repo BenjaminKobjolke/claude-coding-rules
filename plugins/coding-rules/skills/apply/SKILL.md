@@ -1,5 +1,5 @@
 ---
-description: Copy the applicable coding rules (common, language-specific, project-type, addons) into this project's CODING_RULES.md, add a pointer block to CLAUDE.md, and install a plan-acceptance reminder hook. Updates stale rule blocks by version. Use when setting up a project or refreshing its coding rules.
+description: Copy the applicable coding rules (common, language-specific, project-type, addons) into this project's CODING_RULES.md, and add a pointer block to CLAUDE.md. Updates stale rule blocks by version. Use when setting up a project or refreshing its coding rules.
 ---
 
 # Apply Coding Rules
@@ -75,7 +75,8 @@ python <plugin-root>/skills/apply/apply.py \
 
 `<plugin-root>` is `${CLAUDE_PLUGIN_ROOT}`. This single call performs Phases
 B, C, D, D2, and E (legacy migration, version-merged `CODING_RULES.md`,
-`CLAUDE.md` pointer, delegation marker + permission merge, and hook install)
+`CLAUDE.md` pointer, delegation marker + permission merge, and clearing any
+legacy per-project hook install)
 and writes `<project>/coding-rules.json`. Parse the JSON report:
 
 - `needs_user_decision` items (an unrecognized legacy block in `CLAUDE.md`, or
@@ -193,51 +194,31 @@ Use the choice from the "Delegation choice" step above (do not re-ask here):
 <!-- claude-code-only:end -->
 
 <!-- claude-code-only:start -->
-## Phase E — Install the reminder hooks (idempotent)
+## Phase E — Reminder hooks (nothing to install)
 
-Install hooks that remind Claude to read `CODING_RULES.md` when the user accepts a plan (PostToolUse/ExitPlanMode) and on the first code edit of any session (PreToolUse/Edit — per-session marker file, silent afterwards). One script serves both events.
+The reminder hooks ship with the plugin (`${CLAUDE_PLUGIN_ROOT}/hooks/hooks.json`
++ `hooks/coding-rules-reminder.py`), so they are already active in every project
+— no copy into `<project>/.claude/`, no `settings.json` entry. The script gates
+itself: it stays silent unless the project has a `CODING_RULES.md`, and silent
+while `<project>/.claude/hooks/coding-rules-reminder.off` exists
+(`/coding-rules:hooks off`). It resolves the project from `$CLAUDE_PROJECT_DIR`,
+falling back to walking up from the session cwd, so a subfolder cwd is fine.
 
-1. Copy `${CLAUDE_PLUGIN_ROOT}/skills/apply/hooks/coding-rules-reminder.py` to `<project>/.claude/hooks/coding-rules-reminder.py`. Overwriting an existing copy is fine — the script is plugin-managed. Do NOT delete an existing `coding-rules-reminder.off` file next to it — that is the user's disable flag (`/coding-rules:hooks off`).
-2. Verify a Python interpreter: try `python --version`, then `python3`, then `py`. Use whichever works in the hook command below. If none works, skip the hook, tell the user it was skipped, and note that the CLAUDE.md pointer still covers all sessions.
-3. Merge these entries into `<project>/.claude/settings.json`:
+This phase only cleans up the old per-project install, if present:
 
-```json
-{
-  "hooks": {
-    "PostToolUse": [
-      {
-        "matcher": "ExitPlanMode",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python .claude/hooks/coding-rules-reminder.py"
-          }
-        ]
-      }
-    ],
-    "PreToolUse": [
-      {
-        "matcher": "Edit|Write|MultiEdit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python .claude/hooks/coding-rules-reminder.py"
-          }
-        ]
-      }
-    ]
-  }
-}
-```
+1. Delete `<project>/.claude/hooks/coding-rules-reminder.py`.
+2. In `<project>/.claude/settings.json`, remove every hook whose command
+   contains `coding-rules-reminder` (and any entry or event array left empty by
+   that removal). Preserve every other key and entry. If the file is not valid
+   JSON, stop and ask the user — never overwrite.
+3. Keep `<project>/.claude/hooks/coding-rules-reminder.off` — that is the user's
+   disable flag.
 
-Merge rules:
+Note for the user: plan-mode sessions get the reminder at plan acceptance; all
+other sessions get it on the first code edit (tracked per session via a marker
+file in the temp dir, silent for later edits). The plugin hook runs `python` —
+if that is not on PATH, Claude Code reports a non-blocking hook warning.
 
-- If `settings.json` does not exist, create it with exactly this content.
-- If it exists, parse it first. If it is not valid JSON, stop and ask the user — never overwrite. Otherwise add the `hooks` key if missing, append to an existing `PostToolUse` array, and preserve all other keys and entries.
-- Idempotency: before appending, search all existing `PostToolUse` AND `PreToolUse` entries for a command containing `coding-rules-reminder`. If found, update that entry in place if it differs; never add a second one per event.
-- The command uses a relative path on purpose: hooks run with the project directory as cwd, and `$CLAUDE_PROJECT_DIR` does not expand under `cmd.exe`.
-
-Note for the user: plan-mode sessions get the reminder at plan acceptance; all other sessions get it on the first code edit (tracked per session via a marker file in the temp dir, silent for later edits). Hooks added mid-session don't load until the user opens `/hooks` once or restarts the session.
 <!-- claude-code-only:end -->
 
 ## Phase F — Write the manifest (fallback path only)
@@ -250,7 +231,6 @@ so a later run (by either path) knows what's already applied:
   "rules": { "COMMON_RULES.md": 3, "AI_RULES.md": 10, "...": 1 },
   "delegation": "codex",
   "pointerVersion": 1,
-  "python": "python",
   "pluginRoot": "<absolute path to the plugin's rules/ parent, e.g. ${CLAUDE_PLUGIN_ROOT}>"
 }
 ```
@@ -258,8 +238,7 @@ so a later run (by either path) knows what's already applied:
 - `rules` maps each rule file actually copied into `CODING_RULES.md` (path
   relative to `rules/`, e.g. `PYTHON_RULES.md`, `project_type/REST_API.md`) to
   the version of that block as written. `pointerVersion` is the version of the
-  pointer block currently in `CLAUDE.md`. `python` is the interpreter detected
-  in Phase E, or `null` if none was found.
+  pointer block currently in `CLAUDE.md`.
 - If the project already had `CODING_RULES.md` and/or a pointer block from a
   before-this-feature install (no manifest yet), reconstruct `coding-rules.json`
   from what's *currently* applied — read the version out of each existing block's

@@ -6,9 +6,13 @@
 
 Plain stdout is NOT shown to Claude for either event; only the
 hookSpecificOutput.additionalContext JSON field is injected.
-Installed into projects by /coding-rules:apply. Managed by the coding-rules plugin.
+
+Registered globally by the coding-rules plugin (hooks/hooks.json), so it runs in
+every project and gates itself: silent unless the project has a CODING_RULES.md,
+silent when <project>/.claude/hooks/coding-rules-reminder.off exists.
 """
 import json
+import os
 import re
 import sys
 import tempfile
@@ -37,13 +41,28 @@ def emit(event, text):
     }))
 
 
+def project_dir(data):
+    """Project root. The session cwd can be a subfolder, so prefer the env var."""
+    env = os.environ.get("CLAUDE_PROJECT_DIR")
+    if env:
+        return Path(env)
+    cwd = Path(data.get("cwd") or Path.cwd())
+    for d in (cwd, *cwd.parents):
+        if (d / "CODING_RULES.md").exists():
+            return d
+    return cwd
+
+
 def main():
-    if Path(__file__).with_name("coding-rules-reminder.off").exists():
-        return  # disabled via /coding-rules:hooks off
     try:
         data = json.load(sys.stdin)
     except Exception:
         return  # never block tools on malformed input
+    project = project_dir(data)
+    if not (project / "CODING_RULES.md").exists():
+        return  # project has no coding rules installed
+    if (project / ".claude" / "hooks" / "coding-rules-reminder.off").exists():
+        return  # disabled via /coding-rules:hooks off
     event = data.get("hook_event_name", "")
     if event == "PostToolUse":
         emit("PostToolUse", PLAN_ACCEPTED)

@@ -2,18 +2,19 @@
 
 Owns the mechanical phases the skill used to hand-edit: version-merging rule
 blocks into CODING_RULES.md, the CLAUDE.md pointer block, delegation markers +
-settings.local.json permission merge, and the reminder-hook install into
-settings.json. Judgment calls (which rule files apply, the delegation choice,
-an unrecognized legacy block) stay with the skill/model -- this script reports
-them back via `needs_user_decision` / `errors` instead of guessing.
+settings.local.json permission merge, and clearing the legacy per-project
+reminder-hook install (the hooks ship with the plugin now). Judgment calls
+(which rule files apply, the delegation choice, an unrecognized legacy block)
+stay with the skill/model -- this script reports them back via
+`needs_user_decision` / `errors` instead of guessing.
 
 State: `<project>/coding-rules.json` records what was last applied (per-rule
-version, delegation, python interpreter, pointer version, plugin root) so a
-re-run only rewrites what's stale. Source-of-truth versions come from
+version, delegation, pointer version, plugin root) so a re-run only rewrites
+what's stale. Source-of-truth versions come from
 `<plugin-root>/rules/versions.json`; `--check-versions` guards that index
 against the `# Version` header in each md file so they can't drift.
 
-Run:  python apply.py --project <dir> --plugin-root <dir> --rules A.md,B.md [--delegation codex|deepseek|neither|keep] [--python python] [--json]
+Run:  python apply.py --project <dir> --plugin-root <dir> --rules A.md,B.md [--delegation codex|deepseek|neither|keep] [--json]
 Test: python apply.py --self-test
 Guard: python apply.py --check-versions [--plugin-root <dir>]
 """
@@ -21,7 +22,6 @@ Guard: python apply.py --check-versions [--plugin-root <dir>]
 import argparse
 import json
 import re
-import shutil
 import sys
 import tempfile
 from pathlib import Path
@@ -467,38 +467,59 @@ def merge_json_permissions(path, entries):
     return changed, None
 
 
-def merge_hooks(path, python_interp):
-    """Merge the PostToolUse/PreToolUse reminder-hook entries. Returns status string."""
+def uninstall_local_hooks(project):
+    """Remove the legacy per-project reminder-hook install.
+
+    The hooks now ship with the plugin (hooks/hooks.json, ${CLAUDE_PLUGIN_ROOT}),
+    so the copied script and the settings.json entries are dead weight — and the
+    old entries used a relative path that broke whenever cwd was a subfolder.
+    The user's coding-rules-reminder.off flag is kept. Returns a status string.
+    """
+    removed = False
+    script = project / ".claude" / "hooks" / "coding-rules-reminder.py"
+    if script.exists():
+        script.unlink()
+        removed = True
+
+    path = project / ".claude" / "settings.json"
     if path.exists():
         raw = read_text(path)
         try:
             data = json.loads(raw) if raw.strip() else {}
         except json.JSONDecodeError:
             return "error"
-    else:
-        data = {}
-    hooks = data.setdefault("hooks", {})
-    command = f"{python_interp} .claude/hooks/coding-rules-reminder.py"
-
-    def upsert(event, matcher):
-        arr = hooks.setdefault(event, [])
-        for entry in arr:
-            for h in entry.get("hooks", []):
-                if "coding-rules-reminder" in h.get("command", ""):
-                    entry["matcher"] = matcher
-                    h["command"] = command
-                    return
-        arr.append({"matcher": matcher, "hooks": [{"type": "command", "command": command}]})
-
-    upsert("PostToolUse", "ExitPlanMode")
-    upsert("PreToolUse", "Edit|Write|MultiEdit")
-    write_text(path, json.dumps(data, indent=2) + "\n")
-    return "ok"
+        settings_changed = False
+        hooks = data.get("hooks")
+        if isinstance(hooks, dict):
+            for event in list(hooks):
+                arr = hooks.get(event)
+                if not isinstance(arr, list):
+                    continue
+                kept = []
+                for entry in arr:
+                    inner = [h for h in entry.get("hooks", [])
+                             if "coding-rules-reminder" not in h.get("command", "")]
+                    if len(inner) != len(entry.get("hooks", [])):
+                        settings_changed = True
+                        if not inner:
+                            continue
+                        entry["hooks"] = inner
+                    kept.append(entry)
+                if kept:
+                    hooks[event] = kept
+                else:
+                    del hooks[event]
+            if not hooks:
+                data.pop("hooks", None)
+        if settings_changed:
+            write_text(path, json.dumps(data, indent=2) + "\n")
+            removed = True
+    return "migrated" if removed else "plugin"
 
 
 # -------------------------------------------------------------------- run
 
-def run(project, plugin_root, requested_rules, delegation, python_interp):
+def run(project, plugin_root, requested_rules, delegation):
     versions = load_json(plugin_root / "rules" / "versions.json", {})
     manifest_path = project / "coding-rules.json"
     manifest = load_json(manifest_path, {})
@@ -560,20 +581,13 @@ def run(project, plugin_root, requested_rules, delegation, python_interp):
         report["needs_user_decision"].append(
             {"phase": "D", "detail": f"CLAUDE.md pointer version {manifest.get('pointerVersion')} > source {pointer_version}"})
 
-    # Phase E: reminder hook + settings.json
-    manifest["python"] = python_interp
-    hooks_src = Path(__file__).resolve().parent / "hooks" / "coding-rules-reminder.py"
-    if hooks_src.exists():
-        hooks_dst = project / ".claude" / "hooks" / "coding-rules-reminder.py"
-        hooks_dst.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(hooks_src, hooks_dst)
-        settings_path = project / ".claude" / "settings.json"
-        hook_status = merge_hooks(settings_path, python_interp)
-        report["hooks"] = hook_status
-        if hook_status == "error":
-            report["errors"].append({"phase": "E", "file": str(settings_path), "error": "invalid_json"})
-    else:
-        report["hooks"] = "skipped"
+    # Phase E: the reminder hooks ship with the plugin — clear any legacy local install
+    manifest.pop("python", None)
+    hook_status = uninstall_local_hooks(project)
+    report["hooks"] = hook_status
+    if hook_status == "error":
+        report["errors"].append(
+            {"phase": "E", "file": str(project / ".claude" / "settings.json"), "error": "invalid_json"})
 
     manifest["pluginRoot"] = str(plugin_root)
     save_json(manifest_path, manifest)
@@ -777,20 +791,42 @@ def self_test():
     _, err2 = merge_json_permissions(bad_path, ["x"])
     assert err2 == "invalid_json"
 
-    # merge_hooks: create, idempotent update-in-place, invalid json
-    hooks_path = tmp / "settings.json"
-    status = merge_hooks(hooks_path, "python")
-    assert status == "ok"
-    data = json.loads(read_text(hooks_path))
-    assert len(data["hooks"]["PostToolUse"]) == 1
-    status2 = merge_hooks(hooks_path, "python3")
-    assert status2 == "ok"
-    data2 = json.loads(read_text(hooks_path))
-    assert len(data2["hooks"]["PostToolUse"]) == 1  # updated in place, not duplicated
-    assert "python3" in data2["hooks"]["PostToolUse"][0]["hooks"][0]["command"]
-    bad_hooks = tmp / "bad_settings.json"
-    bad_hooks.write_text("[1,", encoding="utf-8")
-    assert merge_hooks(bad_hooks, "python") == "error"
+    # uninstall_local_hooks: legacy install removed, foreign entries + .off kept
+    legacy = Path(tempfile.mkdtemp())
+    hooks_dir = legacy / ".claude" / "hooks"
+    hooks_dir.mkdir(parents=True)
+    (hooks_dir / "coding-rules-reminder.py").write_text("x", encoding="utf-8")
+    (hooks_dir / "coding-rules-reminder.off").write_text("", encoding="utf-8")
+    other = {"type": "command", "command": "python other.py"}
+    write_text(legacy / ".claude" / "settings.json", json.dumps({
+        "permissions": {"allow": ["Bash(ls:*)"]},
+        "hooks": {
+            "PostToolUse": [{"matcher": "ExitPlanMode", "hooks": [
+                {"type": "command", "command": "python .claude/hooks/coding-rules-reminder.py"}]}],
+            "PreToolUse": [
+                {"matcher": "Edit|Write|MultiEdit", "hooks": [
+                    {"type": "command", "command": "python .claude/hooks/coding-rules-reminder.py"},
+                    dict(other)]},
+                {"matcher": "Bash", "hooks": [dict(other)]},
+            ],
+        },
+    }))
+    assert uninstall_local_hooks(legacy) == "migrated"
+    assert not (hooks_dir / "coding-rules-reminder.py").exists()
+    assert (hooks_dir / "coding-rules-reminder.off").exists()  # user's disable flag survives
+    left = json.loads(read_text(legacy / ".claude" / "settings.json"))
+    assert "PostToolUse" not in left["hooks"]  # emptied event dropped
+    assert left["hooks"]["PreToolUse"] == [
+        {"matcher": "Edit|Write|MultiEdit", "hooks": [other]},
+        {"matcher": "Bash", "hooks": [other]},
+    ]
+    assert left["permissions"]["allow"] == ["Bash(ls:*)"]
+    assert uninstall_local_hooks(legacy) == "plugin"  # second run is a no-op
+    clean = Path(tempfile.mkdtemp())
+    assert uninstall_local_hooks(clean) == "plugin"
+    bad_hooks = Path(tempfile.mkdtemp())
+    write_text(bad_hooks / ".claude" / "settings.json", "[1,")
+    assert uninstall_local_hooks(bad_hooks) == "error"
 
     # migrate_legacy: recognized block moved, unrecognized kept + reported
     legacy_plugin = Path(tempfile.mkdtemp())
@@ -840,17 +876,17 @@ def self_test():
     (plugin / "rules" / "BAR.md").write_text("# Version\n1\n\n# Bar Rules\n\nv1 body\n", encoding="utf-8")
     save_json(plugin / "rules" / "versions.json", {"pointer": 1, "FOO.md": 1, "BAR.md": 1})
 
-    report1 = run(project, plugin, ["FOO.md", "BAR.md"], "neither", "python")
+    report1 = run(project, plugin, ["FOO.md", "BAR.md"], "neither")
     assert all(r["status"] == "updated" for r in report1["rules"]), report1
     crm_text_1 = read_text(project / "CODING_RULES.md")
 
-    report2 = run(project, plugin, ["FOO.md", "BAR.md"], "keep", "python")
+    report2 = run(project, plugin, ["FOO.md", "BAR.md"], "keep")
     assert all(r["status"] == "unchanged" for r in report2["rules"]), report2
     assert read_text(project / "CODING_RULES.md") == crm_text_1  # idempotent
 
     (plugin / "rules" / "FOO.md").write_text("# Version\n2\n\n# Foo Rules\n\nv2 body\n", encoding="utf-8")
     save_json(plugin / "rules" / "versions.json", {"pointer": 1, "FOO.md": 2, "BAR.md": 1})
-    report3 = run(project, plugin, ["FOO.md", "BAR.md"], "keep", "python")
+    report3 = run(project, plugin, ["FOO.md", "BAR.md"], "keep")
     statuses = {r["rule"]: r["status"] for r in report3["rules"]}
     assert statuses == {"FOO.md": "updated", "BAR.md": "unchanged"}, statuses
     assert "v2 body" in read_text(project / "CODING_RULES.md")
@@ -873,7 +909,7 @@ def self_test():
     (plugin / "rules" / "BAZ.md").write_text("# Version\n5\n\n# Baz Rules\n\nbody\n", encoding="utf-8")
     save_json(plugin / "rules" / "versions.json",
               {"pointer": 1, "FOO.md": 2, "BAR.md": 1, "BAZ.md": 5})
-    report_real = run(project2, plugin, ["BAZ.md"], "neither", "python")
+    report_real = run(project2, plugin, ["BAZ.md"], "neither")
     manifest_real = load_json(project2 / "coding-rules.json", {})
     assert manifest_real["rules"] == {"FOO.md": 3, "BAR.md": 1, "BAZ.md": 5}, manifest_real
 
@@ -886,7 +922,7 @@ def main(argv=None):
     parser.add_argument("--plugin-root")
     parser.add_argument("--rules", default="")
     parser.add_argument("--delegation", default="keep", choices=["codex", "deepseek", "neither", "keep"])
-    parser.add_argument("--python", default="python")
+    parser.add_argument("--python", default="python", help=argparse.SUPPRESS)  # accepted, ignored: hooks ship with the plugin now
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--self-test", action="store_true")
     parser.add_argument("--check-versions", action="store_true")
@@ -903,7 +939,7 @@ def main(argv=None):
         parser.error("--project and --plugin-root are required")
 
     rules = [r.strip() for r in args.rules.split(",") if r.strip()]
-    report = run(Path(args.project), Path(args.plugin_root), rules, args.delegation, args.python)
+    report = run(Path(args.project), Path(args.plugin_root), rules, args.delegation)
     if args.json:
         print(json.dumps(report, indent=2))
     else:

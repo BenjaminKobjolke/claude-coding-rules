@@ -47,7 +47,7 @@ Rules are copied (not `@import`-linked) so each project pins the exact rule text
 
 They live in `CODING_RULES.md` instead of `CLAUDE.md` so the ~1,000–1,800 lines of rules are not in context every turn. `CLAUDE.md` carries only a small versioned pointer block that mandates reading `CODING_RULES.md` before any code work. The pointer is deliberately **not** an `@import` — Claude Code auto-expands imports into context, which would defeat the point.
 
-To make the read near-guaranteed, `apply` also installs reminder hooks (`.claude/hooks/coding-rules-reminder.py` + `.claude/settings.json`): a `PostToolUse` hook on `ExitPlanMode` re-injects the read instruction the moment a plan is accepted, and a `PreToolUse` hook on `Edit|Write` does the same on the first code edit of any session (tracked by a per-session marker file, silent for later edits).
+To make the read near-guaranteed, the plugin ships reminder hooks (`plugins/coding-rules/hooks/`): a `PostToolUse` hook on `ExitPlanMode` re-injects the read instruction the moment a plan is accepted, and a `PreToolUse` hook on `Edit|Write` does the same on the first code edit of any session (tracked by a per-session marker file, silent for later edits). They are registered by the plugin, not copied into each project, so they work from any working directory; the script stays silent in projects without a `CODING_RULES.md` and while `.claude/hooks/coding-rules-reminder.off` exists (`/coding-rules:hooks off`).
 
 ## License
 
