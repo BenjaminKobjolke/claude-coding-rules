@@ -1,5 +1,5 @@
 # Version
-3
+5
 
 Increase this version number whenever this rule file changes.
 
@@ -72,6 +72,97 @@ floors, focus rings), and how to screenshot pages offscreen to verify it.
 
 The design decisions behind it — tokens, one accent, hierarchy, focus states, empty and
 error states — are language-independent and live in `DESIGN_RULES.md`.
+
+---
+
+## CLI Menus
+
+For **interactive command-line** applications, never hand-roll a menu out of `input()`
+and printed option lists. Use **`pick`** — an arrow-key menu with a selection
+indicator, scrolling for long lists, and optional multiselect — on its **blessed**
+backend:
+
+```bash
+uv add "pick[blessed]"
+```
+
+**Always pass `backend="blessed"`.** `pick`'s default curses backend breaks on Windows
+the moment the program runs a child that inherits the console — a `git` call, a build
+step, anything streaming its output live. From then on curses stops translating the
+arrow keys for the rest of the process: the keys still arrive, but as raw `ESC [ A`
+sequences that `pick` ignores, so every later menu draws and then accepts nothing. It
+looks like a hang and it is sticky — re-initialising curses does not recover it, and
+neither does restoring the console mode. Only never letting the child touch the console
+(capturing its output, which costs live streaming) or decoding the sequences avoids it.
+blessed decodes them, so subprocesses keep the console and their live output.
+
+### Wrap it — one menu helper per project
+
+Never import `pick` at more than one call site. Wrap it in a single helper class
+(e.g. `menu.py` / `UserChoicesHandler`) so keyboard handling, the indicator style,
+and Ctrl-C behavior are defined once:
+
+```py
+# src/<pkg>/menu.py
+import sys
+from pick import pick
+
+
+def show_menu(
+    options: list[str],
+    title: str,
+    indicator: str = "*",
+    default_index: int = 0,
+) -> int:
+    """Show an arrow-key menu; return the selected index. Ctrl-C exits."""
+    try:
+        _, index = pick(
+            options=options,
+            title=title,
+            indicator=indicator,
+            default_index=default_index,
+            backend="blessed",  # never the curses default: see above
+        )
+        return index
+    except KeyboardInterrupt:
+        sys.exit(1)
+```
+
+### Keep option labels and actions in step
+
+The menu returns an **index**, not a parsed letter. Build the label list and a parallel
+list of typed action values (enum members — see "Prefer Type-Safe Values") in the same
+place, so an option can never be shown without a handler:
+
+```py
+options: list[str] = []
+actions: list[MenuAction] = []
+options.append("Commit"); actions.append(MenuAction.COMMIT)
+if repo.has_untracked:
+    options.append("Add all"); actions.append(MenuAction.ADD_ALL)
+options.append("Cancel"); actions.append(MenuAction.CANCEL)
+
+action = actions[show_menu(options, title)]
+```
+
+### Testing
+
+`pick` needs a real terminal, so tests must not call it. Patch the project's wrapper
+(`show_menu`) — not `pick` itself — and assert on the option labels it was handed:
+
+```py
+monkeypatch.setattr("<pkg>.menu.show_menu", lambda options, title, **kw: 0)
+```
+
+Keep a non-interactive path for every menu (a CLI flag, or auto-select when there is a
+single option) so the program stays scriptable and testable without a TTY. Have the
+wrapper refuse outright when `sys.stdin`/`sys.stdout` is not a TTY: without a console the
+menu blocks on a key that can never arrive, which reads as a freeze rather than an error.
+
+Because the tests patch the wrapper, nothing in the suite ever drives a real menu — so
+also keep a small manual script (`tools/menu_smoke.py` + a `.bat`) that opens a menu, runs
+a subprocess inheriting the console, then opens another menu. That second menu is exactly
+what the curses backend breaks, and only a human at a terminal can see it.
 
 ---
 
