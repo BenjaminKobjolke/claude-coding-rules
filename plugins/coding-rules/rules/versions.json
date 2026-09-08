@@ -1,7 +1,7 @@
 {
   "pointer": 1,
   "COMMON_RULES.md": 5,
-  "AI_RULES.md": 21,
+  "AI_RULES.md": 22,
   "PHP_RULES.md": 1,
   "PYTHON_RULES.md": 6,
   "CSHARP_RULES.md": 1,
@@ -19,6 +19,6 @@
   "CREATE_NEW_RULES.md": 2,
   "project_type/FRONTEND.md": 1,
   "project_type/REST_API.md": 3,
-  "ai_rules_addons/graphify.md": 11,
+  "ai_rules_addons/graphify.md": 12,
   "DESIGN_RULES.md": 1
 }

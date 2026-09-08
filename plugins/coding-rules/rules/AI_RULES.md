@@ -1,5 +1,5 @@
 # Version
-21
+22
 
 Increase this version number whenever this rule file changes.
 
@@ -73,7 +73,7 @@ rules make that impossible and leave a debug trail when it happens anyway.
 
 - **Log.** Capture stdout+stderr to a log next to the plan file, named
   `<plan-file-path-without-.md>-<step>-delegate.log` where `<step>` is
-  `plan-dry`, `convention`, `post-impl` or `graphify`; close stdin so a
+  `plan-dry`, `convention` or `post-impl`; close stdin so a
   delegate that ignores the contract dies instead of blocking:
 
   ```
@@ -84,8 +84,8 @@ rules make that impossible and leave a debug trail when it happens anyway.
   in one line — that is the debug handle.
 
 - **Success check.** A delegated step counts as done only if its required
-  SUMMARY block is present (`SUMMARY DRY`, `SUMMARY CONVENTION CHECK`,
-  `SUMMARY GRAPHIFY`, or the post-implementation check file). A permission
+  SUMMARY block is present (`SUMMARY DRY`, `SUMMARY CONVENTION CHECK`, or the
+  post-implementation check file). A permission
   block/denial, timeout, non-zero exit, missing SUMMARY, or a
   `## DELEGATE QUESTIONS` heading all count as failure. Never retry a failed
   delegate call. How to handle the failure depends on its kind:
@@ -115,7 +115,8 @@ rules make that impossible and leave a debug trail when it happens anyway.
   or surface them to the user if they need a decision.
 
 These rules apply to EVERY delegated step below — the plan DRY + convention
-check, the post-implementation DRY audit and the graphify refresh.
+check and the post-implementation DRY audit. (The graphify refresh is a plain
+CLI call, never delegated.)
 
 ## Feature / Change Workflow
 
@@ -166,19 +167,21 @@ post-implementation DRY audit — scope is ONLY the changed-files file above
 Post-Feature Verification + Post-Implementation Code Analysis (project-specific, below)
 
 refresh graphify graph — only if the graphify addon is present in this project's CODING_RULES.md
-  NEVER run this rebuild yourself in the main context: the graphify skill loads a
-  large instruction file and its build output into the window. Delegate it — the
-  rules it must follow live in the graphify addon's "Refreshing after a code
-  change" section, already copied into this project's CODING_RULES.md.
-  delegate enabled (codex or deepseek — run <PROMPT> via that backend's CLI, see Delegation backends above; prepend graphify preamble if applicable; obey the Delegation contract — no-questions suffix, timeout, log, SUMMARY check):
-    <PROMPT> = "Rebuild this project's graphify knowledge graph. Read the graphify section of CODING_RULES.md and follow its 'Refreshing after a code change' rules exactly, including the scope rules — rebuild at the scope the existing graph already has, never narrower. Run the graphify skill's directed rebuild from the repo root (/graphify <code-dir> --directed), writing to the root graphify-out/. Do NOT run a bare `graphify update`. If the graphify skill is not available to you, change nothing and reply exactly GRAPHIFY SKILL UNAVAILABLE. Otherwise end with a summary called SUMMARY GRAPHIFY stating the scan root built, whether graph.json has directed: true, and the node count before and after."
-  delegate disabled:
-    run the same rebuild in a subagent (see "Self-fallback in a subagent") with the
-    same instructions; it returns only the SUMMARY GRAPHIFY block.
-  then verify yourself — cheap, no skill load: root `graphify-out/graph.json` has
-  `directed: true`, and `graphify-out/.graphify_root` matches the scope that was
-  built. If the delegate replied GRAPHIFY SKILL UNAVAILABLE, or either check fails,
-  redo the rebuild via the subagent branch.
+  A seconds-long, no-LLM CLI call. Run it YOURSELF via Bash from the repo root — no
+  delegate, no subagent, no graphify skill load. <code-dir> is the scan root pinned in
+  the project's CODING_RULES.md / CLAUDE.md (one call per dir for multi-path graphs):
+    GRAPHIFY_OUT="$PWD/graphify-out" graphify update "$PWD/<code-dir>"
+  Both halves are mandatory — the absolute GRAPHIFY_OUT keeps the write in the root
+  graphify-out/ and the absolute <code-dir> keeps node ids stable (details in the
+  graphify addon's "Refreshing after a code change" section, copied into CODING_RULES.md).
+  Success = exit 0 ("No code-graph topology changes detected" is also success).
+  Then verify, cheap: root graphify-out/graph.json has `directed: true`, the node count
+  did not collapse, and no <code-dir>/graphify-out/graph.json appeared.
+  On failure: report the decisive output line in one line. `refused to shrink` → re-run
+  with `--force` only if this change really deleted source files. Missing or corrupt
+  graphify-out/graph.json → do NOT run the CLI (it would rebuild undirected); run the
+  full skill build `/graphify <code-dir> --directed` in a subagent (see "Self-fallback
+  in a subagent") — never in the main context, the skill loads a large instruction file.
 ```
 
 ### Docs-only changes — skip the DRY and convention steps

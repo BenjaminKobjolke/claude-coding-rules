@@ -35,6 +35,12 @@ python plugins/coding-rules/skills/sync-codex/sync_to_codex.py
 This installs `coding-rules-apply` and `coding-rules-enforce` as Codex skills with the
 rule files bundled. Re-run after updating the repo. Details: [docs/CODEX.md](docs/CODEX.md).
 
+## Optional addons
+
+- **graphify knowledge graph** -- scoped, directed AST graph of the code dir; the agent
+  queries it before grepping and refreshes it after each change with a seconds-long CLI
+  call. Opt-in per project during `/coding-rules:apply`. Details: [docs/GRAPHIFY.md](docs/GRAPHIFY.md).
+
 ## Structure
 
 - `plugins/coding-rules/rules/` — the rule files (`COMMON_RULES.md`, `AI_RULES.md`, `*_RULES.md`, `project_type/`, `ai_rules_addons/`)
