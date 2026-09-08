@@ -1,5 +1,5 @@
 # Version
-20
+21
 
 Increase this version number whenever this rule file changes.
 
@@ -181,6 +181,26 @@ refresh graphify graph — only if the graphify addon is present in this project
   redo the rebuild via the subagent branch.
 ```
 
+### Docs-only changes — skip the DRY and convention steps
+
+Skip the `plan DRY + convention check`, `/plan:dry-checked` and the
+post-implementation DRY audit when the plan changes **only** non-code files —
+the same exclusion the changed-files file uses: `.md`, plain-text docs, pure
+prose content, the plan file itself. A phase file that states "prose only — no
+code changes in this phase" is the typical case.
+
+Both checks exist to find code to reuse and code to consolidate. With no code in
+scope they always return "No convention issues found." / "No DRY opportunities
+found." — a delegate call and a 10-minute timeout for a known answer.
+
+Instead say in one line that you are skipping them and why
+(`Docs-only plan — DRY + convention check skipped`), then implement. Still
+restate the Definition of Done; mark its DRY-gate and `/dry:check` boxes
+`n/a — docs only`. `/verify:after-change` still runs.
+
+Mixed code + docs, or unsure: run the checks. Not running them is the exception
+and needs the file list to prove it.
+
 ### DRY gate (precondition for implementing)
 
 Do not write a single line until ALL are true. Restate this gate aloud at the
@@ -194,6 +214,10 @@ moment you start implementing — if you cannot, the gate is not cleared:
 The gate survives the `implement` step: if mid-implementation you add a new
 helper, type, or pattern the gate would have caught, stop and re-clear it
 before continuing.
+
+Docs-only plans clear the gate by exemption (see above) — but the survival rule
+still applies in reverse: the moment a docs-only implementation touches a source
+file, the exemption is void. Stop, run the check, then continue.
 
 ### Definition of Done — restate aloud before implementing
 
