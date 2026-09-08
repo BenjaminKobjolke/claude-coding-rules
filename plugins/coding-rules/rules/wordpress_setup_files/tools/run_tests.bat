@@ -24,3 +24,5 @@ if "%1"=="" (
 ) else (
     vendor\bin\phpunit --testsuite %1 --colors=always
 )
+
+exit /b %ERRORLEVEL%

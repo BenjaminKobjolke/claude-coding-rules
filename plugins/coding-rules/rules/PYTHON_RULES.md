@@ -1,5 +1,5 @@
 # Version
-5
+6
 
 Increase this version number whenever this rule file changes.
 
@@ -552,7 +552,7 @@ Conventions:
 
 - **Two separate bats, no chaining.** `tools/compile_exe.bat` freezes;
   `tools/build_installer.bat` packages and fails with "run compile_exe.bat first" if
-  `dist/` is missing. Build bats end in `pause`, so one cannot call the other.
+  `dist/` is missing. Neither bat calls the other.
 - **Version and build reach the installer as `/D` defines** from the bat
   (`/DVERSION= /DBUILD= /DSRCDIR= /DOUTFILE=`), never via the exe's version resource.
   A bare PyInstaller CLI build has no `--version-file`, so there is no resource to

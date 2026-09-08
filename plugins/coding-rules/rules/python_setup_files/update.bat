@@ -9,7 +9,6 @@ where uv >nul 2>nul
 if %ERRORLEVEL% neq 0 (
     echo ERROR: uv is not installed or not in PATH
     echo Please install uv first: https://docs.astral.sh/uv/getting-started/installation/
-    pause
     exit /b 1
 )
 
@@ -17,7 +16,6 @@ echo [1/4] Updating all dependencies to latest versions...
 uv lock --upgrade
 if %ERRORLEVEL% neq 0 (
     echo ERROR: Failed to update lock file
-    pause
     exit /b 1
 )
 
@@ -26,7 +24,6 @@ echo [2/4] Syncing updated dependencies...
 uv sync --all-extras
 if %ERRORLEVEL% neq 0 (
     echo ERROR: Failed to sync dependencies
-    pause
     exit /b 1
 )
 
@@ -58,4 +55,3 @@ echo.
 echo Updated packages are now in uv.lock
 echo Remember to commit uv.lock if everything works correctly
 echo.
-pause

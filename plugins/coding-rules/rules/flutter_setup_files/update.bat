@@ -9,7 +9,6 @@ where fvm >nul 2>nul
 if %ERRORLEVEL% neq 0 (
     echo ERROR: FVM is not installed or not in PATH
     echo Please install FVM first: https://fvm.app/documentation/getting-started/installation
-    pause
     exit /b 1
 )
 
@@ -17,7 +16,6 @@ echo [1/3] Upgrading all dependencies...
 fvm flutter pub upgrade
 if %ERRORLEVEL% neq 0 (
     echo ERROR: Failed to upgrade dependencies
-    pause
     exit /b 1
 )
 
@@ -44,4 +42,3 @@ echo.
 echo Updated packages are now in pubspec.lock
 echo Remember to commit pubspec.lock if everything works correctly
 echo.
-pause

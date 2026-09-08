@@ -1,9 +1,9 @@
 {
   "pointer": 1,
-  "COMMON_RULES.md": 3,
+  "COMMON_RULES.md": 5,
   "AI_RULES.md": 19,
   "PHP_RULES.md": 1,
-  "PYTHON_RULES.md": 5,
+  "PYTHON_RULES.md": 6,
   "CSHARP_RULES.md": 1,
   "JAVASCRIPT_RULES.md": 1,
   "TYPESCRIPT_RULES.md": 1,

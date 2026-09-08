@@ -5,8 +5,8 @@ echo ========================================
 echo.
 
 :: Packages an ALREADY-BUILT dist folder into a single setup exe. Same split as
-:: fman (build_windows.bat freezes, build_windows_installer.bat packages) - and
-:: compile_exe.bat ends in `pause`, so it cannot be chained from here anyway.
+:: fman (build_windows.bat freezes, build_windows_installer.bat packages) - run
+:: compile_exe.bat first, this bat only packages.
 ::
 :: Usage: build_installer.bat [--sign]
 ::   --sign  code-sign the app exe (before packaging) and the setup exe (after)
@@ -70,7 +70,6 @@ echo ========================================
 echo  Build OK: %OUTFILE%
 echo ========================================
 echo.
-pause
 endlocal
 exit /b 0
 
@@ -81,6 +80,5 @@ echo ========================================
 echo  Build failed!
 echo ========================================
 echo.
-pause
 endlocal
 exit /b 1

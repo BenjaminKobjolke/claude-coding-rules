@@ -1,5 +1,5 @@
 # Version
-3
+5
 
 Increase this version number whenever this rule file changes.
 
@@ -120,6 +120,20 @@ Every project must provide the following batch files in the `tools/` directory:
 - `tools/run_integration_tests.bat` — runs integration tests
 
 These scripts ensure a consistent way to execute tests across environments.
+
+Both must **exit with the test runner's own exit code** — capture it right after the run
+(`set TESTRESULT=%ERRORLEVEL%`) and end with `exit /b %TESTRESULT%`. A bat that prints
+"Some tests failed!" but exits 0 reports green to CI, to callers and to AI agents. Never pipe the
+test command into a filter — the pipe's exit code is the *filter's*, not the runner's; write to a
+temp file and filter that instead.
+
+---
+
+## No `pause` in Batch Files
+
+Batch files must never contain a `pause` line. `pause` waits for a keypress, so any bat that has one
+hangs forever when run by CI, another bat, or an AI agent. End with an explicit `exit /b <code>`
+instead, and let the caller decide whether to keep the window open (`cmd /k`).
 
 ---
 

@@ -9,7 +9,6 @@ where fvm >nul 2>nul
 if %ERRORLEVEL% neq 0 (
     echo ERROR: FVM is not installed or not in PATH
     echo Please install FVM first: https://fvm.app/documentation/getting-started/installation
-    pause
     exit /b 1
 )
 
@@ -21,7 +20,6 @@ if %ERRORLEVEL% neq 0 (
     echo ========================================
     echo  Build failed!
     echo ========================================
-    pause
     exit /b 1
 )
 
@@ -33,4 +31,3 @@ echo.
 echo Release APK location:
 echo build\app\outputs\flutter-apk\app-release.apk
 echo.
-pause
