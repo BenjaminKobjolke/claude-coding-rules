@@ -1,5 +1,5 @@
 ---
-description: Enable or disable Codex CLI delegation for this project's coding-rules workflow (plan DRY check, convention check, post-implementation DRY audit). Sets the codex marker in CODING_RULES.md and, on enable, adds the Bash(codex exec:*) and PowerShell(codex exec:*) permissions so codex runs without prompts. Use for "enable codex", "disable codex", "codex status", "codex test" / "test codex" (live smoke test of the permissions).
+description: Enable or disable Codex CLI delegation for this project's coding-rules workflow (plan DRY + convention check, post-implementation DRY audit). Sets the codex marker in CODING_RULES.md and, on enable, adds the Bash(codex exec:*) and PowerShell(codex exec:*) permissions so codex runs without prompts. Use for "enable codex", "disable codex", "codex status", "codex test" / "test codex" (live smoke test of the permissions).
 ---
 
 # Codex Toggle

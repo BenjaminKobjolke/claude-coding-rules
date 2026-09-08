@@ -1,5 +1,5 @@
 # Version
-19
+20
 
 Increase this version number whenever this rule file changes.
 
@@ -114,8 +114,8 @@ rules make that impossible and leave a debug trail when it happens anyway.
   `## DELEGATE QUESTIONS`, answer those questions yourself in the fallback run,
   or surface them to the user if they need a decision.
 
-These rules apply to EVERY delegated step below — plan DRY check, convention
-check, post-implementation DRY audit and the graphify refresh.
+These rules apply to EVERY delegated step below — the plan DRY + convention
+check, the post-implementation DRY audit and the graphify refresh.
 
 ## Feature / Change Workflow
 
@@ -128,19 +128,16 @@ path to both plan-DRY commands.
 ```
 plan approved
 
-plan DRY check
-  delegate enabled (codex or deepseek — run <PROMPT> via that backend's CLI, see Delegation backends above; prepend graphify preamble if applicable; obey the Delegation contract — no-questions suffix, timeout, log, SUMMARY check):
-    <PROMPT> = "FULL PATH TO PLAN - Can you check the plan for DRY opportunities and if you find any, apply them to the original plan file. Only edit the plan file — do NOT modify any source code or implement the plan. Always add a summary at the end called SUMMARY DRY — if you made changes, describe what and why; if you found nothing, write 'No DRY opportunities found.'"
-  delegate disabled:
-    run /plan:dry <plan-file> in a subagent (see "Self-fallback in a
-    subagent"); inline only if a subagent isn't available.
-
-plan convention check
-  delegate enabled (codex or deepseek — run <PROMPT> via that backend's CLI, see Delegation backends above; prepend graphify preamble if applicable; obey the Delegation contract — no-questions suffix, timeout, log, SUMMARY check):
-    <PROMPT> = "FULL PATH TO PLAN $convention-check - If you want to make any changes, apply them to the original plan file. Only edit the plan file — do NOT modify any source code or implement the plan. Always add a summary at the end called SUMMARY CONVENTION CHECK — if you made changes, describe what and why; if you found nothing, write 'No convention issues found.'"
-  delegate disabled:
-    run /convention:check in a subagent (see note) — apply findings to the
-    plan file
+plan DRY + convention check — one step; conventions first, so what already
+exists in the codebase informs the DRY rewrite instead of arriving after it
+  delegate enabled (codex or deepseek — run <PROMPT> via that backend's CLI, see Delegation backends above; prepend graphify preamble if applicable; obey the Delegation contract — no-questions suffix, timeout, log, SUMMARY check; this step needs BOTH summary blocks, a missing one counts as a failed SUMMARY check):
+    <PROMPT> = "FULL PATH TO PLAN $convention-check - First scan the codebase for the existing utilities, patterns and naming conventions this plan should reuse. Then, with those findings in hand, check the plan for DRY, KISS and YAGNI opportunities. Apply both sets of findings to the original plan file. Only edit the plan file — do NOT modify any source code or implement the plan. Always end with two summary blocks: SUMMARY CONVENTION CHECK — what you reused and why, or 'No convention issues found.' — and SUMMARY DRY — what you consolidated and why, or 'No DRY opportunities found.'"
+  delegate disabled (two subagents, in this order — /convention:check is
+  read-only and its report does not reach the /plan:dry subagent by itself):
+    1. run /convention:check in a subagent (see "Self-fallback in a subagent")
+    2. apply its findings to the plan file yourself
+    3. run /plan:dry <plan-file> in a subagent; inline only if a subagent
+       isn't available.
 
 /plan:dry-checked    reload the DRY and convention adjusted plan
 
@@ -189,9 +186,10 @@ refresh graphify graph — only if the graphify addon is present in this project
 Do not write a single line until ALL are true. Restate this gate aloud at the
 moment you start implementing — if you cannot, the gate is not cleared:
 
+- [ ] `/convention:check` found the existing utilities/patterns to reuse, and
+      they are written into the plan file.
 - [ ] `/plan:dry <plan-file>` adjusted that file and completed its Ponytail pass.
 - [ ] `/plan:dry-checked <plan-file>` reloaded the same adjusted plan.
-- [ ] `/convention:check` found the existing utilities/patterns to reuse.
 
 The gate survives the `implement` step: if mid-implementation you add a new
 helper, type, or pattern the gate would have caught, stop and re-clear it

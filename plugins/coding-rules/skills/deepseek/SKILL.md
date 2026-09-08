@@ -1,5 +1,5 @@
 ---
-description: Enable or disable DeepSeek (reasonix CLI) delegation for this project's coding-rules workflow (plan DRY check, convention check, post-implementation DRY audit). Sets the deepseek marker in CODING_RULES.md and, on enable, adds the Bash(reasonix run:*) and PowerShell(reasonix run:*) permissions so reasonix runs without prompts. Use for "enable deepseek", "disable deepseek", "deepseek status", "deepseek test" / "test deepseek" (live smoke test of the permissions).
+description: Enable or disable DeepSeek (reasonix CLI) delegation for this project's coding-rules workflow (plan DRY + convention check, post-implementation DRY audit). Sets the deepseek marker in CODING_RULES.md and, on enable, adds the Bash(reasonix run:*) and PowerShell(reasonix run:*) permissions so reasonix runs without prompts. Use for "enable deepseek", "disable deepseek", "deepseek status", "deepseek test" / "test deepseek" (live smoke test of the permissions).
 ---
 
 # DeepSeek Toggle
