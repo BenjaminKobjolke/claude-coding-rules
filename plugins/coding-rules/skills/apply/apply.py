@@ -47,9 +47,19 @@ Do not inline rules back into this file and do not use `@import` for
 `CODING_RULES.md` — it is intentionally referenced, not imported.
 """
 
+# Both backends go through the same wrapper script (tools/coding_rules_delegate.*),
+# so both need the same entries. Bare and ./-prefixed forms, because the allow
+# entry is matched as a literal command prefix.
+DELEGATE_PERMS = [
+    "Bash(tools/coding_rules_delegate.sh:*)",
+    "Bash(./tools/coding_rules_delegate.sh:*)",
+    "PowerShell(tools/coding_rules_delegate.ps1:*)",
+    "PowerShell(./tools/coding_rules_delegate.ps1:*)",
+]
+
 DELEGATION_PERMS = {
-    "codex": ["Bash(codex exec:*)", "PowerShell(codex exec:*)"],
-    "deepseek": ["Bash(reasonix run:*)", "PowerShell(reasonix run:*)"],
+    "codex": DELEGATE_PERMS,
+    "deepseek": DELEGATE_PERMS,
 }
 
 
@@ -780,12 +790,14 @@ def self_test():
     # merge_json_permissions: create, append-missing, idempotent, invalid json
     tmp = Path(tempfile.mkdtemp())
     perm_path = tmp / "settings.local.json"
-    changed, err = merge_json_permissions(perm_path, ["Bash(codex exec:*)", "PowerShell(codex exec:*)"])
+    changed, err = merge_json_permissions(perm_path, DELEGATE_PERMS)
     assert changed and err is None
     data = json.loads(read_text(perm_path))
-    assert data["permissions"]["allow"] == ["Bash(codex exec:*)", "PowerShell(codex exec:*)"]
-    changed2, _ = merge_json_permissions(perm_path, ["Bash(codex exec:*)"])
+    assert data["permissions"]["allow"] == DELEGATE_PERMS
+    changed2, _ = merge_json_permissions(perm_path, DELEGATE_PERMS[:1])
     assert changed2 is False
+    # both backends share the one wrapper, so both merge the same entries
+    assert DELEGATION_PERMS["codex"] == DELEGATION_PERMS["deepseek"] == DELEGATE_PERMS
     bad_path = tmp / "bad.json"
     bad_path.write_text("{not json", encoding="utf-8")
     _, err2 = merge_json_permissions(bad_path, ["x"])

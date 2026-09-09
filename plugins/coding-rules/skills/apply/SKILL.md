@@ -132,6 +132,14 @@ Identify corresponding copied blocks by the rule document title that follows the
   auto-overwrites a tailored block: a newer source version is reported as
   `tailored-stale` in `needs_user_decision`, and you hand-merge the source changes
   into the tailored copy (then bump the block's version to match the source).
+  `apply.py` reads the applied version from `coding-rules.json`, not from the block —
+  so after a hand-merge also bump that rule's version in the manifest, otherwise the
+  next run still reports `tailored-stale`. Re-run `apply.py` to confirm it comes back
+  `unchanged`.
+- A tailored addon usually has tailored **setup files** too (e.g.
+  `tools/graphify_update.bat` from `ai_rules_addons/`). `apply.py` never touches those —
+  diff the project copy against the template on a `tailored-stale` merge and re-copy it,
+  re-applying the project's substitutions (`CODE_DIR`, paths).
 - User-authored top-level sections after the last managed block (project deviations,
   project-specific rules, …) are preserved by `apply.py` when a block is replaced —
   any heading the source doc doesn't contain starts preserved content, reported per
@@ -173,24 +181,33 @@ most one is `enabled`.
 
 Use the choice from the "Delegation choice" step above (do not re-ask here):
 
+Both backends are invoked through the same wrapper script, so both install the
+same two files and the same four permission entries:
+
+- copy `${CLAUDE_PLUGIN_ROOT}/rules/delegate_setup_files/coding_rules_delegate.sh`
+  and `.ps1` into `<project>/tools/` (create it if missing; overwrite — verbatim
+  templates),
+- merge `"Bash(tools/coding_rules_delegate.sh:*)"`,
+  `"Bash(./tools/coding_rules_delegate.sh:*)"`,
+  `"PowerShell(tools/coding_rules_delegate.ps1:*)"` and
+  `"PowerShell(./tools/coding_rules_delegate.ps1:*)"` into
+  `<project>/.claude/settings.local.json` `permissions.allow` per that skill's
+  merge rules.
+
 - Codex → follow the `on` steps of `${CLAUDE_PLUGIN_ROOT}/skills/codex/SKILL.md`
   (insert `<!-- codex: enabled -->` after the managed-by comment, verify
-  `codex --version`, merge `"Bash(codex exec:*)"` and
-  `"PowerShell(codex exec:*)"` into
-  `<project>/.claude/settings.local.json` `permissions.allow` per that skill's
-  merge rules, and insert `<!-- deepseek: disabled -->`).
+  `codex --version`, install the wrapper + permissions above, and insert
+  `<!-- deepseek: disabled -->`).
 - DeepSeek → follow the `on` steps of
   `${CLAUDE_PLUGIN_ROOT}/skills/deepseek/SKILL.md` (insert
   `<!-- deepseek: enabled -->` after the managed-by comment, verify
-  `reasonix --version`, merge `"Bash(reasonix run:*)"` and
-  `"PowerShell(reasonix run:*)"` into
-  `<project>/.claude/settings.local.json` `permissions.allow` per that skill's
-  merge rules, and insert `<!-- codex: disabled -->`).
+  `reasonix --version`, install the wrapper + permissions above, and insert
+  `<!-- codex: disabled -->`).
 - Neither → insert `<!-- codex: disabled -->` and `<!-- deepseek: disabled -->`
   after the managed-by comment.
 - If a marker for the chosen backend is already `enabled`, still (re-)run that
-  backend's permission merge — idempotent, and picks up permissions added in
-  newer plugin versions.
+  backend's wrapper copy and permission merge — idempotent, and picks up
+  wrapper/permission changes shipped in newer plugin versions.
 <!-- claude-code-only:end -->
 
 <!-- claude-code-only:start -->
