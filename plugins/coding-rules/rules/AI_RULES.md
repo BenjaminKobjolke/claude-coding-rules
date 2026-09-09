@@ -1,5 +1,5 @@
 # Version
-23
+24
 
 Increase this version number whenever this rule file changes.
 
@@ -91,8 +91,14 @@ rules make that impossible and leave a debug trail when it happens anyway.
   > under a heading `## DELEGATE QUESTIONS`, then exit immediately. Always
   > write the required SUMMARY block, even on failure."
 
-- **Timeout.** Run every delegate call with `timeout: 600000` (10 min, the
-  Bash tool maximum). Never make an untimed delegate call.
+- **Foreground, with a timeout.** Run every delegate call in the FOREGROUND with
+  `timeout: 600000` (10 min, the Bash tool maximum). Never make an untimed
+  delegate call, and never pass `run_in_background: true` — not for the delegate
+  itself and not for a loop that waits on it. Backgrounding means ending your turn
+  to wait for the notification, and in a headless run (`claude -p`, an agent-driven
+  session, a subagent) the turn ending kills the process and every background task
+  with it: the delegate dies mid-check, its summary never arrives, and the session
+  exits 0 having done nothing. Block on the call instead.
 
 - **Log.** Argument 3 is a log next to the plan file, named
   `<plan-file-path-without-.md>-<step>-delegate.log` (same `<step>` values as
