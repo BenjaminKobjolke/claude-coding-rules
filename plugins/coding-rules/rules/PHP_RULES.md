@@ -1,5 +1,5 @@
 # Version
-1
+2
 
 Increase this version number whenever this rule file changes.
 
@@ -618,7 +618,13 @@ Templated batch runners and a Rector config live in [`php_setup_files/`](php_set
 
 Every project must include:
 
-- `tools/run_tests.bat` - Runs the test suite
+- `tools/run_tests.bat` - unit suite, no database, works offline
+- `tools/run_integration_tests.bat` - integration suite against a local mirror of the live DB
+- `tools/tests.bat` - everything; refreshes the mirror first
+
+Set them up per [`php_setup_files/FAST_TESTS.md`](php_setup_files/FAST_TESTS.md) - local DB
+mirror via `sqlbackup`, Cycle schema cached once per process, `XDEBUG_MODE=off`, exit code =
+phpunit's. Templates for all four bats live in `php_setup_files/tools/`.
 
 ---
 
