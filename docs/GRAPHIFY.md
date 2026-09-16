@@ -5,9 +5,11 @@ knowledge graph: classes, methods, calls, extends/implements, fan-in/fan-out, co
 god nodes. The addon wires it into a project's `CODING_RULES.md` so the agent queries the
 graph before grepping and refreshes it after every code change.
 
-Rule source: `plugins/coding-rules/rules/ai_rules_addons/graphify.md` (versioned; copied
+Rule sources: `plugins/coding-rules/rules/implementation_flow_addons/graphify.md` (lands in
+`CODING_RULES.md`) and `implementation_flow_addons/graphify_flow.md` (lands in
+`IMPLEMENTATION_FLOW.md`) — both versioned; copied
 into the project by `/coding-rules:apply`). Refresh bat template:
-`plugins/coding-rules/rules/ai_rules_addons/graphify_update.bat`.
+`plugins/coding-rules/rules/implementation_flow_addons/graphify_update.bat`.
 
 Opt-in per project — `/coding-rules:apply` asks before adding it.
 
@@ -70,7 +72,7 @@ snapshot — stale until refreshed.
 
 ## Refreshing after a code change
 
-This is the step `AI_RULES.md` runs after every implementation. One command, no LLM, no API
+This is the step `IMPLEMENTATION_FLOW.md` runs after every implementation. One command, no LLM, no API
 key, seconds (1 s on a 360-node graph, ~12 s on 4,900 nodes):
 
 ```bash

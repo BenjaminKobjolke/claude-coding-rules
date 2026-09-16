@@ -1,5 +1,5 @@
 ---
-description: Enable or disable Codex CLI delegation for this project's coding-rules workflow (plan DRY + convention check, post-implementation DRY audit). Sets the codex marker in CODING_RULES.md and, on enable, installs the tools/coding_rules_delegate wrapper plus its Bash/PowerShell permissions so codex runs without prompts or classifier denials. Use for "enable codex", "disable codex", "codex status", "codex test" / "test codex" (live smoke test of the permissions).
+description: Enable or disable Codex CLI delegation for this project's coding-rules workflow (plan DRY + convention check, post-implementation DRY audit). Sets the codex marker in IMPLEMENTATION_FLOW.md and, on enable, installs the tools/coding_rules_delegate wrapper plus its Bash/PowerShell permissions so codex runs without prompts or classifier denials. Use for "enable codex", "disable codex", "codex status", "codex test" / "test codex" (live smoke test of the permissions).
 ---
 
 # Codex Toggle
@@ -10,7 +10,10 @@ checks itself (`/plan:dry`, `/convention:check`,
 `/dry:check`).
 
 State lives as an HTML comment marker near the top of the project's
-`CODING_RULES.md`, outside any versioned rule block:
+`IMPLEMENTATION_FLOW.md`, outside any versioned rule block. Delegation is a
+property of the implementation flow, so a run told to ignore that file ignores
+the delegation setting with it. (Pre-split projects carry the marker in
+`CODING_RULES.md`; `/coding-rules:apply` moves it.)
 
 ```markdown
 <!-- codex: enabled -->
@@ -29,7 +32,7 @@ ask the user whether to change it.
 
 ## on
 
-1. If the project has no `CODING_RULES.md`, stop and tell the user to run
+1. If the project has no `IMPLEMENTATION_FLOW.md`, stop and tell the user to run
    `/coding-rules:apply` first.
 2. Set the marker to `<!-- codex: enabled -->`: replace an existing
    `<!-- codex: ... -->` marker in place, otherwise insert the marker on its own
@@ -112,7 +115,8 @@ skill owns the field — do not clobber a `"deepseek"` value here.
 
 Report:
 
-- Marker state in `CODING_RULES.md` (enabled / disabled / no marker = disabled).
+- Marker state in `IMPLEMENTATION_FLOW.md` (enabled / disabled / no marker = disabled).
+  Fall back to `CODING_RULES.md` for a project not yet migrated to the split.
 - Whether `tools/coding_rules_delegate.sh` and `tools/coding_rules_delegate.ps1`
   exist.
 - Whether the four `coding_rules_delegate` entries are present in

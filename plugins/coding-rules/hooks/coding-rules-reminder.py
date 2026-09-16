@@ -24,14 +24,15 @@ MARKER_MAX_AGE = 7 * 24 * 3600
 
 PLAN_ACCEPTED = (
     "The plan was just accepted. MANDATORY before implementing: Read the "
-    "project's CODING_RULES.md in full in this session and follow every "
-    "applicable rule while writing code. If already read this session, "
-    "re-confirm the rules relevant to the files you are about to change."
+    "project's CODING_RULES.md and IMPLEMENTATION_FLOW.md in full in this "
+    "session and follow every applicable rule while writing code. If already "
+    "read this session, re-confirm the rules relevant to the files you are "
+    "about to change."
 )
 FIRST_EDIT = (
     "First code edit this session. If you have not read the project's "
-    "CODING_RULES.md in this session, Read it in full before continuing "
-    "and follow every applicable rule."
+    "CODING_RULES.md and IMPLEMENTATION_FLOW.md in this session, Read them "
+    "in full before continuing and follow every applicable rule."
 )
 
 

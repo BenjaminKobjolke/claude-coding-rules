@@ -4,13 +4,13 @@ description: Audit the actual codebase for coding-rule violations and report the
 
 # Enforce Coding Rules
 
-First run `/coding-rules:apply` to ensure `CODING_RULES.md` has the latest rules (this also migrates legacy inlined rules out of CLAUDE.md).
+First run `/coding-rules:apply` to ensure `CODING_RULES.md` and `IMPLEMENTATION_FLOW.md` have the latest rules (this also migrates legacy inlined rules out of CLAUDE.md, and splits the flow out of a pre-split `CODING_RULES.md`).
 
 Then audit the actual project code against those rules. Do NOT auto-fix — report findings and let the user decide what to fix.
 
 ## Setup
 
-1. Read `CODING_RULES.md` to determine which rules apply to this project. Fallback: if `CODING_RULES.md` does not exist, read legacy inlined rule blocks (`# Version` + rule title) from `CLAUDE.md`
+1. Read `CODING_RULES.md` and `IMPLEMENTATION_FLOW.md` to determine which rules apply to this project. Audit against both. Fallback: if neither exists, read legacy inlined rule blocks (`# Version` + rule title) from `CLAUDE.md`
 2. Detect the project language(s) from file extensions and project files
 3. Identify source directories — exclude: vendor, node_modules, build output, generated files, .git
 

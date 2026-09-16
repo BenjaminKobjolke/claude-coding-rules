@@ -1,7 +1,7 @@
 {
-  "pointer": 1,
-  "COMMON_RULES.md": 5,
-  "AI_RULES.md": 24,
+  "pointer": 2,
+  "COMMON_RULES.md": 6,
+  "IMPLEMENTATION_FLOW.md": 25,
   "PHP_RULES.md": 2,
   "PYTHON_RULES.md": 6,
   "CSHARP_RULES.md": 1,
@@ -15,10 +15,11 @@
   "UNITY_CSHARP_RULES.md": 1,
   "WORDPRESS_RULES.md": 1,
   "WORDPRESS_THEMES.md": 1,
-  "PROJECT_TYPES.md": 2,
+  "PROJECT_TYPES.md": 3,
   "CREATE_NEW_RULES.md": 2,
   "project_type/FRONTEND.md": 1,
   "project_type/REST_API.md": 3,
-  "ai_rules_addons/graphify.md": 12,
+  "implementation_flow_addons/graphify.md": 13,
+  "implementation_flow_addons/graphify_flow.md": 1,
   "DESIGN_RULES.md": 1
 }

@@ -1,9 +1,9 @@
 # Version
-24
+25
 
 Increase this version number whenever this rule file changes.
 
-# AI Workflow Rules (All Languages)
+# Implementation Flow (All Languages)
 
 See `COMMON_RULES.md` for rules that apply to all languages.
 
@@ -300,9 +300,12 @@ bugs:fix
 
 ## Optional Addons
 
-These live in `ai_rules_addons/` and are **not** always-on. Each is opt-in per project — ASK
+These live in `implementation_flow_addons/` and are **not** always-on. Each is opt-in per project — ASK
 the user whether they want it before wiring it into that project's `CODING_RULES.md`.
 
-- [`ai_rules_addons/graphify.md`](ai_rules_addons/graphify.md) — graphify knowledge graph:
-  scoped + directed AST build, folder layout, gitignore, and the query/refresh rules to paste
-  into a project's `CODING_RULES.md`.
+- [`implementation_flow_addons/graphify.md`](implementation_flow_addons/graphify.md) — graphify knowledge graph:
+  scoped + directed AST build, folder layout, gitignore, and the query rules. Lands in the
+  project's `CODING_RULES.md`.
+- [`implementation_flow_addons/graphify_flow.md`](implementation_flow_addons/graphify_flow.md) — the
+  graphify steps that belong to the flow: the delegate preamble and the post-change refresh. Lands
+  in the project's `IMPLEMENTATION_FLOW.md`. Opt into it together with `graphify.md`.

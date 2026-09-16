@@ -61,6 +61,10 @@ def build_skill(src_md, skill_name, dest_dir, with_rules):
         encoding="utf-8",
     )
     if with_rules:
+        # Prune first: copytree(dirs_exist_ok=True) never deletes, so a renamed
+        # or removed source would linger here forever (e.g. the pre-split
+        # AI_RULES.md next to its IMPLEMENTATION_FLOW.md replacement).
+        shutil.rmtree(dest_dir / "rules", ignore_errors=True)
         shutil.copytree(PLUGIN_ROOT / "rules", dest_dir / "rules", dirs_exist_ok=True)
         apply_py = src_md.parent / "apply.py"
         if apply_py.exists():

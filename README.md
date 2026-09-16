@@ -43,7 +43,7 @@ rule files bundled. Re-run after updating the repo. Details: [docs/CODEX.md](doc
 
 ## Structure
 
-- `plugins/coding-rules/rules/` — the rule files (`COMMON_RULES.md`, `AI_RULES.md`, `*_RULES.md`, `project_type/`, `ai_rules_addons/`)
+- `plugins/coding-rules/rules/` — the rule files (`COMMON_RULES.md`, `IMPLEMENTATION_FLOW.md`, `*_RULES.md`, `project_type/`, `implementation_flow_addons/`)
 - `plugins/coding-rules/rules/*_setup_files/` — batch scripts and config templates the rules reference
 - `plugins/coding-rules/skills/` — the `apply` and `enforce` skills
 

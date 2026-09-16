@@ -1,5 +1,5 @@
 # Version
-5
+6
 
 Increase this version number whenever this rule file changes.
 
@@ -17,7 +17,9 @@ When working on a project, copy all relevant rules into the project's `CODING_RU
 mandates reading `CODING_RULES.md` before code work — never the full rules, and never an
 `@import` of `CODING_RULES.md` (imports auto-expand into context every turn).
 
-- Always include all rules from `COMMON_RULES.md` and `AI_RULES.md`
+- Always include all rules from `COMMON_RULES.md` and `IMPLEMENTATION_FLOW.md`.
+  `COMMON_RULES.md` is copied into the project's `CODING_RULES.md`;
+  `IMPLEMENTATION_FLOW.md` is copied into the project's own `IMPLEMENTATION_FLOW.md`
 - Also include applicable language-specific, project-type, and supplemental rule files
   (see `PROJECT_TYPES.md` for the project-type overview)
 - Include optional addon rule files only when the user has opted in to that addon

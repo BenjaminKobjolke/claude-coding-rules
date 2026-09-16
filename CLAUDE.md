@@ -1,7 +1,7 @@
 # Rule authoring: keep versions.json in sync
 
 Every file in `plugins/coding-rules/rules/*.md` (including `project_type/` and
-`ai_rules_addons/`) starts with a `# Version` header. The current version of
+`implementation_flow_addons/`) starts with a `# Version` header. The current version of
 every rule file is also tracked centrally in
 `plugins/coding-rules/rules/versions.json` — `apply.py` (used by the
 `coding-rules:apply` skill) reads that index instead of opening every md file,

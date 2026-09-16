@@ -27,24 +27,54 @@ import tempfile
 from pathlib import Path
 
 MANAGED_COMMENT = "<!-- Managed by /coding-rules:apply — do not edit rule blocks by hand -->"
+
+# Two destinations. CODING_RULES.md holds code quality (binding always);
+# IMPLEMENTATION_FLOW.md holds the orchestration steps, which an external
+# orchestrator may run itself and therefore has to be able to ignore wholesale.
+RULES_FILE = "CODING_RULES.md"
+FLOW_FILE = "IMPLEMENTATION_FLOW.md"
+FLOW_TITLE = "# Implementation Flow (All Languages)"
+GRAPHIFY_FLOW_TITLE = "# graphify Flow Steps (Optional Addon)"
+FLOW_RELS = {FLOW_FILE, "implementation_flow_addons/graphify_flow.md"}
+FLOW_TITLES = {FLOW_TITLE, GRAPHIFY_FLOW_TITLE}
+
+# Pre-split names, still found in already-applied projects and stale manifests.
+LEGACY_FLOW_TITLE = "# AI Workflow Rules (All Languages)"
+LEGACY_RELS = {
+    "AI_RULES.md": FLOW_FILE,
+    "ai_rules_addons/graphify.md": "implementation_flow_addons/graphify.md",
+}
+# Titles a source doc is also known by, so an old block isn't mistaken for
+# user-authored content by split_orphan_tail during the migration.
+HEADING_ALIASES = {FLOW_TITLE: {LEGACY_FLOW_TITLE}}
+
 POINTER_TITLE = "# Coding Rules (Pointer)"
 POINTER_BLOCK_TEMPLATE = """# Version
 {version}
 
 # Coding Rules (Pointer)
 
-This project's coding rules live in `CODING_RULES.md` in the project root. They are
-BINDING for all code work in this repository.
+This project's rules live in two files in the project root:
 
-MANDATORY: Before writing or editing ANY code, you MUST Read `CODING_RULES.md`
-in full **in the current session**. Do not rely on memory of a previous session,
-a summary, or partial reads.
+- `CODING_RULES.md` — code quality and conventions. BINDING for all code work in
+  this repository, always.
+- `IMPLEMENTATION_FLOW.md` — the end-to-end flow to follow when planning and
+  implementing a change (checks, gates, Definition of Done).
 
-If you are about to make a code change and have not read `CODING_RULES.md` in
-this session: STOP, read it, then continue.
+MANDATORY: Before writing or editing ANY code, you MUST Read BOTH files in full
+**in the current session**. Do not rely on memory of a previous session, a
+summary, or partial reads.
 
-Do not inline rules back into this file and do not use `@import` for
-`CODING_RULES.md` — it is intentionally referenced, not imported.
+If you are about to make a code change and have not read both files in this
+session: STOP, read them, then continue.
+
+An external tool may orchestrate the implementation itself. When a skill or run
+states that the implementation is orchestrated, ignore `IMPLEMENTATION_FLOW.md`
+entirely — the orchestrator runs those steps as its own phases. `CODING_RULES.md`
+stays binding either way.
+
+Do not inline rules back into this file and do not use `@import` for either file —
+they are intentionally referenced, not imported.
 """
 
 # Both backends go through the same wrapper script (tools/coding_rules_delegate.*),
@@ -188,6 +218,8 @@ def source_headings(src_text, all_levels=False):
             heads.add(stripped)
         elif not all_levels and stripped.startswith("# "):
             heads.add(stripped)
+    for head in list(heads):
+        heads |= HEADING_ALIASES.get(head, set())
     return heads
 
 
@@ -318,16 +350,17 @@ def reconcile_manifest(blocks, manifest_rules, title_to_rel):
     return new_manifest_rules
 
 
-def rebuild_header(header_text, delegation_choice):
-    """Rebuild the managed-comment + codex/deepseek marker header. Returns
-    (new_header_text, resolved_delegation)."""
-    marker_re = re.compile(r"^<!-- (codex|deepseek): (enabled|disabled) -->$")
-    lines = header_text.splitlines()
+MARKER_RE = re.compile(r"^<!-- (codex|deepseek): (enabled|disabled) -->$")
+
+
+def split_header(header_text):
+    """-> (codex_state, deepseek_state, other_lines). Drops the managed comment
+    and the delegation markers; keeps everything else the user put up there."""
     codex_state = deepseek_state = None
     other = []
-    for line in lines:
+    for line in header_text.splitlines():
         stripped = line.strip()
-        m = marker_re.match(stripped)
+        m = MARKER_RE.match(stripped)
         if m:
             if m.group(1) == "codex":
                 codex_state = m.group(2)
@@ -338,6 +371,30 @@ def rebuild_header(header_text, delegation_choice):
             continue
         if stripped:
             other.append(stripped)
+    return codex_state, deepseek_state, other
+
+
+def compose_header(other_lines, resolved=None):
+    """Managed comment, the delegation markers when `resolved` is given, then
+    the user's own header lines."""
+    lines = [MANAGED_COMMENT]
+    if resolved is not None:
+        lines.append("<!-- codex: %s -->" % ("enabled" if resolved == "codex" else "disabled"))
+        lines.append("<!-- deepseek: %s -->" % ("enabled" if resolved == "deepseek" else "disabled"))
+    lines.extend(other_lines)
+    return "\n".join(lines) + "\n\n"
+
+
+def rebuild_headers(rules_header, flow_header, delegation_choice):
+    """Rebuild both file headers. The delegation markers live in
+    IMPLEMENTATION_FLOW.md only -- delegation is a property of the flow, so a
+    run that ignores the flow file must ignore its delegation setting too. A
+    marker still sitting in CODING_RULES.md is a pre-split project: read it,
+    then leave it behind. Returns (rules_header, flow_header, resolved)."""
+    codex_r, deepseek_r, other_r = split_header(rules_header)
+    codex_f, deepseek_f, other_f = split_header(flow_header)
+    codex_state = codex_f if codex_f is not None else codex_r
+    deepseek_state = deepseek_f if deepseek_f is not None else deepseek_r
 
     if delegation_choice == "keep":
         if codex_state == "enabled":
@@ -349,12 +406,33 @@ def rebuild_header(header_text, delegation_choice):
     else:
         resolved = delegation_choice
 
-    codex_state = "enabled" if resolved == "codex" else "disabled"
-    deepseek_state = "enabled" if resolved == "deepseek" else "disabled"
+    return compose_header(other_r), compose_header(other_f, resolved), resolved
 
-    new_lines = [MANAGED_COMMENT, f"<!-- codex: {codex_state} -->", f"<!-- deepseek: {deepseek_state} -->"]
-    new_lines.extend(other)
-    return "\n".join(new_lines) + "\n\n", resolved
+
+def destination_for(rel):
+    return FLOW_FILE if rel in FLOW_RELS else RULES_FILE
+
+
+def migrate_flow_blocks(rules_blocks, flow_blocks):
+    """One-time split: move flow-owned blocks out of CODING_RULES.md into
+    IMPLEMENTATION_FLOW.md, retitling the pre-split '# AI Workflow Rules' block
+    so process_rules recognizes it (and so its version, and any user-authored
+    tail below it, survive). Returns (rules_blocks, flow_blocks, moved_titles)."""
+    keep, moved = [], []
+    for b in rules_blocks:
+        (moved if b["title"] in FLOW_TITLES or b["title"] == LEGACY_FLOW_TITLE else keep).append(b)
+    present = {b["title"] for b in flow_blocks}
+    moved_titles = []
+    for b in moved:
+        if b["title"] == LEGACY_FLOW_TITLE:
+            b["text"] = b["text"].replace(LEGACY_FLOW_TITLE, FLOW_TITLE, 1)
+            b["title"] = FLOW_TITLE
+        if b["title"] in present:
+            continue  # the flow file already owns it -- drop the stale copy
+        flow_blocks.append(b)
+        present.add(b["title"])
+        moved_titles.append(b["title"])
+    return keep, flow_blocks, moved_titles
 
 
 # -------------------------------------------------------------- CLAUDE.md
@@ -370,6 +448,8 @@ def build_title_index(plugin_root, versions):
             continue
         _, title = parse_source_version_title(read_text(src_path))
         index[title] = rel
+        for alias in HEADING_ALIASES.get(title, ()):
+            index.setdefault(alias, rel)
     return index
 
 
@@ -444,7 +524,15 @@ def apply_pointer(claude_text, manifest_pointer_version, source_version):
         return claude_text, manifest_pointer_version, "unchanged"
 
     if existing is not None:
-        rest_lines = lines[:existing["start"]] + lines[existing["end"]:]
+        # The pointer block runs to the next '# Version' line or EOF, so in the
+        # common CLAUDE.md -- pointer on top, the project's own guidance below,
+        # no further '# Version' -- that guidance is *inside* the block. Split it
+        # back off at the first heading the template doesn't have, or replacing
+        # the block deletes the whole file body.
+        _, orphan = split_orphan_tail(
+            existing["text"], POINTER_BLOCK_TEMPLATE.format(version=source_version),
+            all_levels=True)
+        rest_lines = lines[:existing["start"]] + [orphan] + lines[existing["end"]:]
     else:
         rest_lines = lines
     rest_text = "".join(rest_lines).lstrip("\n")
@@ -534,6 +622,9 @@ def run(project, plugin_root, requested_rules, delegation):
     manifest_path = project / "coding-rules.json"
     manifest = load_json(manifest_path, {})
     manifest.setdefault("rules", {})
+    # Pre-split manifests key the flow rules by their old paths -- rename on
+    # load so a migrated project reports `unchanged`, not a full re-apply.
+    manifest["rules"] = {LEGACY_RELS.get(rel, rel): ver for rel, ver in manifest["rules"].items()}
 
     report = {"rules": [], "pointer": None, "delegation": None, "hooks": None,
               "needs_user_decision": [], "errors": []}
@@ -543,7 +634,7 @@ def run(project, plugin_root, requested_rules, delegation):
     claude_text = read_text(claude_path) if claude_path.exists() else ""
     title_to_rel = build_title_index(plugin_root, versions)
     claude_text, migrated, unrecognized = migrate_legacy(claude_text, title_to_rel, plugin_root)
-    requested = list(dict.fromkeys(requested_rules))
+    requested = list(dict.fromkeys(LEGACY_RELS.get(rel, rel) for rel in requested_rules))
     for rel, ver in migrated.items():
         manifest["rules"].setdefault(rel, ver)
         if rel not in requested:
@@ -552,11 +643,23 @@ def run(project, plugin_root, requested_rules, delegation):
         report["needs_user_decision"].append(
             {"phase": "B", "detail": f"Unrecognized versioned block in CLAUDE.md: {title}"})
 
-    # Phase C: version-merge rule blocks into CODING_RULES.md
-    crm_path = project / "CODING_RULES.md"
-    header, blocks = read_coding_rules(crm_path)
-    blocks, manifest["rules"], rules_report = process_rules(
-        blocks, plugin_root, requested, manifest["rules"], versions)
+    # Phase C: version-merge rule blocks into their destination file
+    crm_path = project / RULES_FILE
+    flow_path = project / FLOW_FILE
+    crm_header, crm_blocks = read_coding_rules(crm_path)
+    flow_header, flow_blocks = read_coding_rules(flow_path)
+    crm_blocks, flow_blocks, _moved = migrate_flow_blocks(crm_blocks, flow_blocks)
+
+    rules_report = []
+    merged = []
+    for dest, dest_blocks in ((RULES_FILE, crm_blocks), (FLOW_FILE, flow_blocks)):
+        subset = [rel for rel in requested if destination_for(rel) == dest]
+        dest_blocks, manifest["rules"], dest_report = process_rules(
+            dest_blocks, plugin_root, subset, manifest["rules"], versions)
+        merged.append(dest_blocks)
+        rules_report.extend(dest_report)
+    crm_blocks, flow_blocks = merged
+
     report["rules"] = rules_report
     for item in rules_report:
         if item["status"] in ("conflict", "tailored-stale"):
@@ -564,14 +667,17 @@ def run(project, plugin_root, requested_rules, delegation):
         elif item["status"] == "error":
             report["errors"].append({"phase": "C", "detail": f"{item['rule']}: {item['detail']}"})
 
-    # Reconcile: record any recognized block already in CODING_RULES.md that
-    # wasn't in --rules this run (e.g. added by an earlier install), so the
-    # manifest never lags behind what's actually in the file.
-    manifest["rules"] = reconcile_manifest(blocks, manifest["rules"], title_to_rel)
+    # Reconcile: record any recognized block already on disk that wasn't in
+    # --rules this run (e.g. added by an earlier install), so the manifest
+    # never lags behind what's actually in the files.
+    manifest["rules"] = reconcile_manifest(crm_blocks + flow_blocks, manifest["rules"], title_to_rel)
 
-    # Phase D2: delegation markers (header lives in CODING_RULES.md)
-    new_header, resolved_delegation = rebuild_header(header, delegation)
-    write_coding_rules(crm_path, new_header, blocks)
+    # Phase D2: delegation markers (they live in IMPLEMENTATION_FLOW.md)
+    new_crm_header, new_flow_header, resolved_delegation = rebuild_headers(
+        crm_header, flow_header, delegation)
+    write_coding_rules(crm_path, new_crm_header, crm_blocks)
+    if flow_blocks or flow_path.exists():
+        write_coding_rules(flow_path, new_flow_header, flow_blocks)
     manifest["delegation"] = resolved_delegation
     report["delegation"] = resolved_delegation
     if resolved_delegation in DELEGATION_PERMS:
@@ -764,15 +870,39 @@ def self_test():
     reconciled3 = reconcile_manifest([unrecognized_block], {}, {})
     assert reconciled3 == {}, reconciled3
 
-    # rebuild_header: keep / explicit / mutual exclusivity
-    header, resolved = rebuild_header("", "codex")
+    # rebuild_headers: keep / explicit / mutual exclusivity, markers in the flow
+    # file only, and a pre-split marker read out of CODING_RULES.md
+    crm_h, flow_h, resolved = rebuild_headers("", "", "codex")
     assert resolved == "codex"
-    assert "<!-- codex: enabled -->" in header and "<!-- deepseek: disabled -->" in header
-    header2, resolved2 = rebuild_header(header, "keep")
+    assert "<!-- codex: enabled -->" in flow_h and "<!-- deepseek: disabled -->" in flow_h
+    assert "codex" not in crm_h and crm_h.startswith(MANAGED_COMMENT)
+    crm_h2, flow_h2, resolved2 = rebuild_headers(crm_h, flow_h, "keep")
     assert resolved2 == "codex"
-    header3, resolved3 = rebuild_header(header2, "deepseek")
+    _, flow_h3, resolved3 = rebuild_headers(crm_h2, flow_h2, "deepseek")
     assert resolved3 == "deepseek"
-    assert "<!-- codex: disabled -->" in header3 and "<!-- deepseek: enabled -->" in header3
+    assert "<!-- codex: disabled -->" in flow_h3 and "<!-- deepseek: enabled -->" in flow_h3
+    # pre-split: the marker still sits in CODING_RULES.md and no flow file exists
+    crm_h4, flow_h4, resolved4 = rebuild_headers(
+        MANAGED_COMMENT + "\n<!-- codex: enabled -->\n<!-- deepseek: disabled -->\n", "", "keep")
+    assert resolved4 == "codex", resolved4
+    assert "codex" not in crm_h4 and "<!-- codex: enabled -->" in flow_h4
+    # unrelated header lines survive on their own side
+    crm_h5, _, _ = rebuild_headers("<!-- codex: enabled -->\nProject note.\n", "", "keep")
+    assert "Project note." in crm_h5
+
+    # migrate_flow_blocks: legacy-titled block moves and is retitled; a copy the
+    # flow file already owns is dropped rather than duplicated
+    legacy_block = {"title": LEGACY_FLOW_TITLE,
+                    "text": f"# Version\n24\n\n{LEGACY_FLOW_TITLE}\n\nflow body\n"}
+    quality_block = {"title": "# Foo Rules", "text": "# Version\n2\n\n# Foo Rules\n\nbody\n"}
+    kept, flowed, moved_titles = migrate_flow_blocks([quality_block, legacy_block], [])
+    assert kept == [quality_block], kept
+    assert moved_titles == [FLOW_TITLE] and flowed[0]["title"] == FLOW_TITLE, (moved_titles, flowed)
+    assert FLOW_TITLE in flowed[0]["text"] and LEGACY_FLOW_TITLE not in flowed[0]["text"]
+    dup = {"title": LEGACY_FLOW_TITLE, "text": f"# Version\n24\n\n{LEGACY_FLOW_TITLE}\n\nstale\n"}
+    already = {"title": FLOW_TITLE, "text": f"# Version\n25\n\n{FLOW_TITLE}\n\nnew\n"}
+    kept2, flowed2, moved2 = migrate_flow_blocks([dup], [already])
+    assert kept2 == [] and flowed2 == [already] and moved2 == [], (kept2, flowed2, moved2)
 
     # apply_pointer: absent -> insert, equal -> unchanged, manifest>source -> conflict
     text, ver, status = apply_pointer("Some preamble.\n", None, 1)
@@ -786,6 +916,20 @@ def self_test():
     # current version must not be rewritten just because manifest is absent
     text4, ver4, status4 = apply_pointer(text, None, 1)
     assert status4 == "unchanged" and ver4 == 1, (status4, ver4)
+
+    # apply_pointer regression: the typical CLAUDE.md is the pointer block
+    # followed by the project's own guidance and no further '# Version' line, so
+    # that guidance parses as part of the pointer block. A version bump must not
+    # delete it.
+    with_body = (
+        POINTER_BLOCK_TEMPLATE.format(version=1).rstrip("\n") + "\n\n"
+        "# CLAUDE.md\n\nProject guidance.\n\n## Build\n\n`make`\n"
+    )
+    text5, ver5, status5 = apply_pointer(with_body, 1, 2)
+    assert status5 == "updated" and ver5 == 2, (status5, ver5)
+    assert "# CLAUDE.md" in text5 and "Project guidance." in text5 and "`make`" in text5, text5
+    assert text5.count(POINTER_TITLE) == 1, text5
+    assert "\n2\n" in text5.split(POINTER_TITLE)[0], text5
 
     # merge_json_permissions: create, append-missing, idempotent, invalid json
     tmp = Path(tempfile.mkdtemp())
@@ -924,6 +1068,49 @@ def self_test():
     report_real = run(project2, plugin, ["BAZ.md"], "neither")
     manifest_real = load_json(project2 / "coding-rules.json", {})
     assert manifest_real["rules"] == {"FOO.md": 3, "BAR.md": 1, "BAZ.md": 5}, manifest_real
+
+    # The rules/flow split: a pre-split project has the flow block inlined in
+    # CODING_RULES.md and the codex marker in its header. Both must move to
+    # IMPLEMENTATION_FLOW.md, everything else must stay put, and a second run
+    # must report `unchanged` (i.e. the manifest rel rename took).
+    split_plugin = Path(tempfile.mkdtemp())
+    (split_plugin / "rules").mkdir()
+    (split_plugin / "rules" / "FOO.md").write_text(
+        "# Version\n1\n\n# Foo Rules\n\nquality body\n", encoding="utf-8")
+    (split_plugin / "rules" / FLOW_FILE).write_text(
+        f"# Version\n25\n\n{FLOW_TITLE}\n\nflow body v25\n", encoding="utf-8")
+    save_json(split_plugin / "rules" / "versions.json",
+              {"pointer": 2, "FOO.md": 1, FLOW_FILE: 25})
+
+    split_project = Path(tempfile.mkdtemp())
+    write_text(split_project / RULES_FILE,
+               MANAGED_COMMENT + "\n<!-- codex: enabled -->\n<!-- deepseek: disabled -->\n\n"
+               "# Version\n1\n\n# Foo Rules\n\nquality body\n\n"
+               f"# Version\n24\n\n{LEGACY_FLOW_TITLE}\n\nflow body v24\n")
+    save_json(split_project / "coding-rules.json",
+              {"rules": {"FOO.md": 1, "AI_RULES.md": 24}, "delegation": "codex", "pointerVersion": 1})
+
+    split_report = run(split_project, split_plugin, ["FOO.md", "AI_RULES.md"], "keep")
+    split_statuses = {r["rule"]: r["status"] for r in split_report["rules"]}
+    assert split_statuses == {"FOO.md": "unchanged", FLOW_FILE: "updated"}, split_statuses
+    assert split_report["delegation"] == "codex", split_report
+    crm_after = read_text(split_project / RULES_FILE)
+    flow_after = read_text(split_project / FLOW_FILE)
+    assert "quality body" in crm_after, crm_after
+    assert "Workflow Rules" not in crm_after and "flow body" not in crm_after, crm_after
+    assert "codex" not in crm_after, crm_after
+    assert "<!-- codex: enabled -->" in flow_after, flow_after
+    assert "flow body v25" in flow_after and "flow body v24" not in flow_after, flow_after
+    assert "Foo Rules" not in flow_after, flow_after
+    split_manifest = load_json(split_project / "coding-rules.json", {})
+    assert split_manifest["rules"] == {"FOO.md": 1, FLOW_FILE: 25}, split_manifest
+    assert "IMPLEMENTATION_FLOW.md" in read_text(split_project / "CLAUDE.md")
+
+    split_report2 = run(split_project, split_plugin, ["FOO.md", FLOW_FILE], "keep")
+    assert all(r["status"] == "unchanged" for r in split_report2["rules"]), split_report2
+    assert split_report2["pointer"] == "unchanged", split_report2
+    assert read_text(split_project / RULES_FILE) == crm_after
+    assert read_text(split_project / FLOW_FILE) == flow_after
 
     print("self-test OK")
 

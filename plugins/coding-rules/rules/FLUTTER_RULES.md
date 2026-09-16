@@ -1,5 +1,5 @@
 # Version
-6
+7
 
 Increase this version number whenever this rule file changes.
 
@@ -527,6 +527,10 @@ project/
 ---
 
 ## Project Setup Scripts
+
+For projects that ship a Windows desktop installer, follow the optional
+[Windows release guide](flutter_setup_files/WINDOWS_RELEASES.md). It is not a
+requirement for mobile-only projects.
 
 Copy the setup batch files from the `flutter_setup_files/` folder bundled with the
 coding-rules plugin (next to this rules file).
