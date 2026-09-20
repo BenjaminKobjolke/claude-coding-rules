@@ -104,6 +104,17 @@ and writes `<project>/coding-rules.json`. Parse the JSON report:
 
 Gotchas seen in practice:
 
+- Python projects: recent `ruff format` (seen: 0.16) also reformats Python code
+  blocks *inside Markdown*, so a plain `ruff format .` silently rewrites the
+  managed `CODING_RULES.md`. The manifest still says the version is current, so a
+  later apply run reports `unchanged` and never repairs it. Add
+  `extend-exclude = ["*.md"]` under `[tool.ruff]` in `pyproject.toml` when
+  scaffolding. To repair a mangled file: delete `CODING_RULES.md` and
+  `coding-rules.json`, re-run apply.py with `--delegation keep`.
+- A delegate can write `## DELEGATE QUESTIONS` about things that are not real
+  blockers on a fresh project: the auto-generated plan filename not matching the
+  plan's topic, and `graphify-out/graph.json` not existing yet. Say both up front
+  in the prompt file for greenfield projects.
 - With `--delegation codex|deepseek` on a fresh project, apply.py wrote the
   marker and the four permission entries but did NOT copy
   `tools/coding_rules_delegate.sh` / `.ps1`. After the run, check `tools/` and
