@@ -1,5 +1,5 @@
 # Version
-3
+4
 
 Increase this version number whenever this rule file changes.
 
@@ -105,7 +105,8 @@ if ($basePath !== '') {
 
 $app->addBodyParsingMiddleware();
 $app->addRoutingMiddleware();
-$app->addErrorMiddleware(true, true, true);
+// displayErrorDetails from config: `true` prints SQL errors and stack traces to every client.
+$app->addErrorMiddleware((bool) ($container->getConfig()['debug'] ?? false), true, true);
 $app->add(\App\Middleware\CorsMiddleware::class);
 
 (require __DIR__ . '/../src/Config/Routes.php')($app);
@@ -637,6 +638,9 @@ The drain method processes pending rows, marks failures, and cleans up old entri
 ```php
 class OrmFactory
 {
+    public const SCHEMA_SYNC_LOCK = '<project>_schema_sync';
+    private const SCHEMA_SYNC_LOCK_TIMEOUT_SECONDS = 30;
+
     private DatabaseConfig $config;
     private string $entityPath;
 
@@ -659,30 +663,78 @@ class OrmFactory
 
     private function compileSchema(): Schema
     {
-        $finder = (new Finder())->files()->in($this->entityPath)->name('*.php');
-        $classLocator = new ClassLocator($finder);
+        // Raw statements on purpose: a named lock has no ORM equivalent and is no entity query.
+        $database = $this->getDbal()->database();
+        $acquired = (int) $database
+            ->query('SELECT GET_LOCK(?, ?)', [self::SCHEMA_SYNC_LOCK, self::SCHEMA_SYNC_LOCK_TIMEOUT_SECONDS])
+            ->fetchColumn();
+        if ($acquired !== 1) {
+            throw new \RuntimeException('Schema sync lock not acquired within ' . self::SCHEMA_SYNC_LOCK_TIMEOUT_SECONDS . 's');
+        }
 
-        return new Schema((new Compiler())->compile(new Registry($this->getDbal()), [
-            new Generator\ResetTables(),
-            new Annotated\Embeddings(new TokenizerEmbeddingLocator($classLocator)),
-            new Annotated\Entities(new TokenizerEntityLocator($classLocator)),
-            new Annotated\TableInheritance(),
-            new Annotated\MergeColumns(),
-            new Generator\GenerateRelations(),
-            new Generator\GenerateModifiers(),
-            new Generator\ValidateEntities(),
-            new Generator\RenderTables(),
-            new Generator\RenderRelations(),
-            new Generator\RenderModifiers(),
-            new Annotated\MergeIndexes(),
-            new Generator\SyncTables(),      // Auto-creates/updates tables
-            new Generator\GenerateTypecast(),
-        ]));
+        try {
+            $finder = (new Finder())->files()->in($this->entityPath)->name('*.php');
+            $classLocator = new ClassLocator($finder);
+
+            return new Schema((new Compiler())->compile(new Registry($this->getDbal()), [
+                new Generator\ResetTables(),
+                new Annotated\Embeddings(new TokenizerEmbeddingLocator($classLocator)),
+                new Annotated\Entities(new TokenizerEntityLocator($classLocator)),
+                new Annotated\TableInheritance(),
+                new Annotated\MergeColumns(),
+                new Generator\GenerateRelations(),
+                new Generator\GenerateModifiers(),
+                new Generator\ValidateEntities(),
+                new Generator\RenderTables(),
+                new Generator\RenderRelations(),
+                new Generator\RenderModifiers(),
+                new Annotated\MergeIndexes(),
+                new Generator\SyncTables(),      // Auto-creates/updates tables
+                new Generator\GenerateTypecast(),
+            ]));
+        } finally {
+            $database->query('SELECT RELEASE_LOCK(?)', [self::SCHEMA_SYNC_LOCK])->fetchColumn();
+        }
     }
 }
 ```
 
-`SyncTables` automatically creates and alters database tables to match entity annotations. No manual migrations needed during development.
+`SyncTables` automatically creates and alters database tables to match entity annotations — there
+are no migration files. The DDL runs inside whichever request first needs the ORM after a deploy.
+
+### Schema sync on deploy (BINDING)
+
+Two requests in the same second after an upload both diff the old table state and both apply the
+change. Cycle suffixes index names with `uniqid()`, so MySQL/MariaDB accepts the second
+`CREATE UNIQUE INDEX` as a different index — and from then on **every** request fails in
+`SyncTables` with `SyncException: 1061 Duplicate key name` (tickets-api live incident, 2026-09-20).
+
+- **The compile MUST run under a MySQL named lock** (`GET_LOCK` / `finally RELEASE_LOCK`, as
+  above), with the table reflection *inside* the lock: the request that waited diffs the state
+  the winner left behind and issues no DDL. No lock within the timeout is an exception, never an
+  unguarded sync. This is the one sanctioned exception to "No Raw SQL" in `PHP_RULES.md`.
+- **Never resolve the ORM eagerly in `Routes.php`.** Add middleware by `::class` string only. An
+  exception thrown outside `$app->run()` bypasses Slim's error middleware: empty `500` on every
+  route, no CORS headers, nothing in the app log. If eager resolution is unavoidable, wrap app
+  creation, route registration and `run()` in a `try/catch` in `index.php` that logs
+  `Bootstrap failed` and answers with the standard error body.
+- **Test it:** after a compile and after a throwing compile, `SELECT IS_FREE_LOCK(?)` is `1`.
+- **Optional — schema file cache.** Cache the compiled schema on disk, keyed on path, mtime and
+  size of every entity file; a hit skips tokenizer, table diff, DDL and lock. Keep it OFF wherever
+  the database gets swapped under unchanged entity files (local live-DB mirror,
+  `APP_ENV=testing`), and delete the cache after restoring a database backup.
+
+Recovery, no deploy needed — find the duplicates, drop one of each pair:
+
+```sql
+SELECT table_name, cols, COUNT(*) n, GROUP_CONCAT(index_name) FROM (
+  SELECT table_name, index_name, GROUP_CONCAT(column_name ORDER BY seq_in_index) cols
+  FROM information_schema.statistics WHERE table_schema = DATABASE()
+  GROUP BY table_name, index_name) x
+GROUP BY table_name, cols HAVING n > 1;
+
+ALTER TABLE <table> DROP INDEX <one of the two identical index names>;
+```
 
 ---
 
