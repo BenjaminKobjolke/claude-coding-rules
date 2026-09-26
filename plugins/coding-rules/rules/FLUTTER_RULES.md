@@ -1,5 +1,5 @@
 # Version
-7
+8
 
 Increase this version number whenever this rule file changes.
 
@@ -1109,6 +1109,99 @@ Future<void> fetchData() async {
   }
 }
 ```
+
+### Mobile Data Budget (BINDING)
+
+An app that polls keeps downloading on every tick even when the server answer did not change, and
+holds its data in memory only. The server half of this contract is
+`project_type/REST_API.md` -> "Response Size and Mobile Data"; these are the client half.
+
+- **Ask the API for exactly what the screen shows.** Read slim lists (`fields=slim`), filter
+  server-side, and use one overview call per polling screen; fetch full detail only when a detail
+  screen opens, and send the last offset for growing logs and append. If the API lacks the
+  slim/overview/offset endpoint, request it from the API project instead of filtering client-side
+  (an app-only project may not install `REST_API.md`, so the one-line client statement stays here).
+- **Conditional GET in the client.** A Dio interceptor in the `ApiClient` singleton — registered
+  with `_dio.interceptors.add(EtagInterceptor(box))` the same way `flutter/IN_APP_DEBUGGER.md` adds
+  the Logarte interceptor (switch the inline `_dio` above to its `_createDio()` form) — stores
+  `ETag` + body per request URL in an ObjectBox entity (`etag`, `body`; section 9 is already a
+  standard dependency, so no cache package is added), sends `If-None-Match` on the next `GET`, and
+  treats `304` as "use the cached body". Echo the tag **verbatim**, including a `-gzip` suffix. A
+  `304` must not trigger "new data" side effects (sounds, notifications, animations). On a network
+  failure serve the cache but forget the tag. `validateStatus` must accept `304` — Dio's default
+  accepts only `2xx`, so a `304` would otherwise surface as an error:
+
+  ```dart
+  class EtagInterceptor extends Interceptor {
+    EtagInterceptor(this._box);
+    final Box<CachedResponse> _box; // ObjectBox entity: id, url, etag, body
+
+    CachedResponse? _cached(String url) {
+      final query = _box.query(CachedResponse_.url.equals(url)).build();
+      try {
+        return query.findFirst();
+      } finally {
+        query.close();
+      }
+    }
+
+    @override
+    void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+      final tag = _cached(options.uri.toString())?.etag;
+      if (tag != null && options.method == 'GET') {
+        options.headers['If-None-Match'] = tag; // verbatim, -gzip suffix included
+      }
+      handler.next(options);
+    }
+
+    @override
+    void onResponse(Response response, ResponseInterceptorHandler handler) {
+      final url = response.requestOptions.uri.toString();
+      if (response.statusCode == 304) {
+        final cached = _cached(url)!;              // a 304 carries no body
+        response.statusCode = 200;
+        response.headers.value('etag', cached.etag); // restore the tag for the next call
+        response.data = jsonDecode(cached.body);
+      } else if (response.statusCode == 200 && response.headers.value('etag') != null) {
+        _box.put(CachedResponse(
+            url: url, etag: response.headers.value('etag')!, body: jsonEncode(response.data)));
+      }
+      handler.next(response);
+    }
+
+    @override
+    void onError(DioException err, ErrorInterceptorHandler handler) {
+      final cached = _cached(err.requestOptions.uri.toString());
+      if (cached == null || err.response != null) {
+        handler.next(err);
+        return;
+      }
+      _box.remove(cached.id); // forget the tag: the next call fetches without If-None-Match
+      handler.resolve(Response(
+          requestOptions: err.requestOptions, statusCode: 200, data: jsonDecode(cached.body)));
+    }
+  }
+  ```
+- **gzip comes free.** `dart:io`'s `HttpClient` (Dio's default adapter on mobile) sends
+  `Accept-Encoding: gzip` and decompresses the response; never disable it.
+- **Polling is foreground-only and bounded.** Every timer/poll loop checks
+  `WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed` before each fetch, stops on
+  pause/dispose, and has an overall timeout. Inject `bool Function() isForeground` so a test can
+  drive the lifecycle. User-settable refresh intervals live in `AppConfig` (section 3) with a
+  data-safe minimum (15 s) and default (30 s); clamp stored values below the minimum. Screen-awake/
+  kiosk modes still count as foreground, so the minimum matters.
+- **Resume reloads only what is visible.** On `resumed`, reload the current tab plus any cheap
+  overview; mark the other tabs stale and let them reload in their own `onSelected`.
+- **Images: disk cache + thumbnails.** Cache image bytes on disk keyed by image id under
+  `path_provider`'s cache directory (`path_provider` is already a standard dependency;
+  `LIBRARIES.md` lists no image-cache package, so add none), size-capped — the bytes never change.
+  Use a thumbnail for list/preview and fetch full size only when the image is opened. A
+  memory-only cache refetches on every screen open.
+- **Measure.** Android Settings -> Apps -> <app> -> Mobile data splits foreground and background
+  usage; a high background share means a poller ignores the lifecycle.
+- **Test it:** the interceptor (no tag on the first call, tag sent after `200`, `304` returns the
+  cached body, a network failure serves the cache and clears the tag); a poller skips fetches while
+  backgrounded and resumes; the interval clamp.
 
 ---
 

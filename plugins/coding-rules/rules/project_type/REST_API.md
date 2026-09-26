@@ -1,5 +1,5 @@
 # Version
-4
+5
 
 Increase this version number whenever this rule file changes.
 
@@ -38,6 +38,7 @@ project/
 ├── hoppscotch/                 # API testing collections (one .json per feature group)
 ├── lang/                       # Localization JSON files (if needed)
 ├── public/
+│   ├── .htaccess               # rewrite + mod_deflate for JSON
 │   └── index.php               # Application entry point
 ├── src/
 │   ├── Config/
@@ -52,6 +53,7 @@ project/
 │   ├── Helper/                 # Utility helpers
 │   ├── Middleware/              # HTTP middleware
 │   │   ├── AuthMiddleware.php
+│   │   ├── ConditionalGetMiddleware.php
 │   │   └── CorsMiddleware.php
 │   ├── Presenter/              # Response formatters
 │   ├── Repository/             # Data access layer
@@ -505,6 +507,105 @@ class SharedHabitPresenter
 
 ---
 
+## Response Size and Mobile Data (BINDING)
+
+A phone screen that refreshes on a timer downloads every row with every long text field,
+unfiltered and unpaginated, and classifies client-side — so the same fat bodies are resent on
+every tick, uncompressed, often through several requests where one would do. That is mobile data
+the user pays for (tickets-api "high data usage" incident, 2026-09).
+
+- **List endpoints return slim rows.** A list/collection response carries only the fields a list
+  tile shows (ids, title, status, timestamps, claim/owner fields); long text (descriptions,
+  reports, transcripts, logs) lives only on the detail endpoint. New projects: slim is the list
+  default. Existing APIs: add an opt-in `?fields=slim` and keep the default unchanged
+  (backwards compatible). Implement it as a separate list serializer (e.g. `toListArray()` /
+  a list value object) next to `toArray()`.
+- **Filter and bound on the server.** Every list accepts the filters its callers need,
+  multi-value as comma-separated (`status=error,answered`), and has a `limit`/pagination.
+  Never ship "fetch everything, classify client-side".
+- **One overview endpoint per polling screen.** A screen that refreshes on a timer gets one
+  purpose-built endpoint (e.g. `GET /api/v1/attention`) returning exactly its data in one body,
+  built by a Presenter, instead of N calls per tick.
+- **Conditional GET on the protected group.** A middleware answers an unchanged `GET` with `304`
+  and an empty body instead of resending identical JSON:
+
+  ```php
+  class ConditionalGetMiddleware implements MiddlewareInterface
+  {
+      public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
+      {
+          $response = $handler->handle($request);
+
+          if ($request->getMethod() !== 'GET'
+              || $response->getStatusCode() !== 200
+              || !str_contains($response->getHeaderLine('Content-Type'), 'application/json')) {
+              return $response;
+          }
+
+          $etag = '"' . sha1((string) $response->getBody()) . '"';
+          $response = $response
+              ->withHeader('ETag', $etag)
+              ->withHeader('Cache-Control', 'private, no-cache');
+
+          if ($this->matches($request->getHeaderLine('If-None-Match'), $etag)) {
+              return (new Response(304))
+                  ->withHeader('ETag', $etag)
+                  ->withHeader('Cache-Control', 'private, no-cache');
+          }
+
+          return $response;
+      }
+
+      private function matches(string $ifNoneMatch, string $etag): bool
+      {
+          foreach (explode(',', $ifNoneMatch) as $candidate) {
+              $candidate = preg_replace('#^W/#', '', trim($candidate));     // weak prefix
+              $candidate = preg_replace('#-gzip("?)$#', '$1', $candidate); // Apache mod_deflate suffix, inside the quotes
+              if ($candidate === '*' || $candidate === $etag) {
+                  return true;
+              }
+          }
+          return false;
+      }
+  }
+  ```
+
+  Wire it inside the protected group; Slim runs the last-added middleware first, so auth still
+  rejects before anything is hashed:
+
+  ```php
+  $group->get('/habits', [HabitController::class, 'index'])
+      ->add(ConditionalGetMiddleware::class)
+      ->add(AuthMiddleware::class);
+  ```
+
+  `DeflateAlterETag` cannot be set from `.htaccess`, so the tag is trimmed of the `-gzip` suffix
+  Apache appends — the client echoes the tag verbatim.
+- **gzip JSON.** `public/.htaccess`:
+
+  ```apache
+  <IfModule mod_deflate.c>
+      AddOutputFilterByType DEFLATE application/json
+  </IfModule>
+  ```
+
+  After the first deploy, check the live host (not testable locally — the host may ignore the
+  rule): resend a `GET` with `Accept-Encoding: gzip` and expect `Content-Encoding: gzip`, then
+  resend it with `If-None-Match: <ETag>` and expect `304` (the two curl lines in
+  `## Manual API Testing`).
+- **Growing output is read incrementally.** Logs/output that grow while a client polls take an
+  offset (`log_offset` in, `log_offset`/`log_length` out) so each poll sends only the new bytes.
+- **Images: thumbnails + immutable bytes.** Image file endpoints accept a whitelisted width
+  (`?w=160|320|640`, anything else is `422` via the existing `ValidationException` — no new error
+  path), build the thumbnail once with GD and cache it on disk, never upscale, delete cached
+  thumbnails with the image, and declare `ext-gd` in `composer.json` `require`. Without `w` the
+  original bytes are served unchanged.
+- **Test it:** `304` on a matching tag (plain, `W/`, `-gzip`); non-`GET`/non-`200` pass through;
+  slim rows omit the long fields while the default output is unchanged; a multi-value filter;
+  the thumbnail width whitelist.
+
+---
+
 ## JWT Authentication Middleware
 
 The `AuthMiddleware` validates Bearer tokens and supports dual token types (JWT + API tokens with prefix):
@@ -882,6 +983,10 @@ TOKEN=$(php tools/gen_token.php <user_id>)
 # GET request
 curl -s -H "Authorization: Bearer $TOKEN" http://localhost/my-api/api/v1/habits | jq
 
+# gzip + conditional GET on a live host (expect Content-Encoding: gzip, then 304)
+curl -s -I -H 'Accept-Encoding: gzip' -H "Authorization: Bearer $TOKEN" http://localhost/my-api/api/v1/habits
+curl -s -I -H "If-None-Match: <ETag>" -H "Authorization: Bearer $TOKEN" http://localhost/my-api/api/v1/habits
+
 # POST request
 curl -s -X POST \
   -H "Authorization: Bearer $TOKEN" \
@@ -937,6 +1042,9 @@ GET /api/v1/habits/week
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | offset | integer | No | Week offset (0 = current, -1 = last week). Default: 0. |
+
+List endpoints document their `fields` (e.g. `fields=slim`), filter and `limit`/pagination
+parameters in this table.
 
 ### Examples
 
