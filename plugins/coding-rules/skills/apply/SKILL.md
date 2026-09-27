@@ -4,6 +4,10 @@ description: Copy the applicable coding rules (common, language-specific, projec
 
 # Apply Coding Rules
 
+For refreshing every previously configured project at once, use `/coding-rules:update-all`.
+This skill remains the right choice for initial setup, changed rule selections, and conflicts
+that require judgment.
+
 The rule files ship with this plugin at `${CLAUDE_PLUGIN_ROOT}/rules/`. Do not ask the user for a rules folder path.
 
 Rules are copied into **two** files in the project root:

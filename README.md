@@ -19,9 +19,17 @@ For developing the plugin from a local clone, see [DEBUG.md](DEBUG.md).
 | Skill | What it does |
 |-------|--------------|
 | `/coding-rules:apply` | Writes the applicable rules (common + language + project type + opted-in addons) into your project's `CODING_RULES.md`, puts a versioned pointer block into `CLAUDE.md`, and installs a plan-acceptance hook that reminds Claude to read the rules. Rule blocks carry a `# Version`; re-running updates only stale blocks and migrates legacy inlined `CLAUDE.md` rules. |
+| `/coding-rules:update-all` | Scans configured folders and refreshes every project whose coding-rules manifest is behind the plugin. |
 | `/coding-rules:enforce` | Audits your actual codebase against the rules and reports violations — no auto-fixing. |
 | `/coding-rules:hooks` | `on` / `off` / `status` for the reminder hooks in the current project. Toggles via a flag file — no settings.json edits, no session restart needed. |
 | `/coding-rules:sync-codex` | Installs the skills into OpenAI Codex (`~/.codex/skills/`) so the same rules work there. |
+
+## Update all projects
+
+Copy `plugins/coding-rules/settings.example.json` to `~/.coding-rules/settings.json`, set the
+folders to scan, then run `/coding-rules:update-all`. Use `--dry-run` with the underlying
+`update_all.py` script to list updates without changing projects. Repositories already current
+are left untouched; conflicts are reported for a manual `/coding-rules:apply` run.
 
 ## Using with OpenAI Codex
 
