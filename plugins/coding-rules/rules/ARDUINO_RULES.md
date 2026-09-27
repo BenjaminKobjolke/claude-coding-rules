@@ -1,5 +1,5 @@
 # Version
-1
+2
 
 Increase this version number whenever this rule file changes.
 
@@ -253,6 +253,15 @@ The common "Input Validation at Boundaries" rule applies to physical and serial 
 - Range-check `analogRead` / sensor values before acting on them; reject impossible readings.
 - Validate the length and format of serial commands before parsing; never index past a buffer.
 - Treat anything arriving over Serial, I2C, or radio as untrusted, exactly like a network input.
+
+---
+
+## Web Server (HTTP over Ethernet / WiFi)
+
+A sketch that serves HTTP must also follow `arduino/WEBSERVER.md`, including its request
+deadline, shared command handler, `/netinfo` diagnostics, and serial master switch. The
+`coding-rules:apply` skill copies that file into `CODING_RULES.md` as its own block when the
+project serves HTTP.
 
 ---
 

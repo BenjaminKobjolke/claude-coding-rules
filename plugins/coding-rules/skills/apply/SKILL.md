@@ -27,6 +27,8 @@ Always read `${CLAUDE_PLUGIN_ROOT}/rules/COMMON_RULES.md` and `${CLAUDE_PLUGIN_R
 - Project-type rules: see `PROJECT_TYPES.md` for the overview, files in `project_type/`
 - Supplemental rules: `DESIGN_RULES.md` — include when the project has a user interface
   (desktop, web, mobile, TUI); skip it for libraries, APIs, and headless tools
+- Supplemental rules: `arduino/WEBSERVER.md` — include for Arduino projects whose sketch
+  serves HTTP (`EthernetServer` / `WiFiServer` in the code); skip it otherwise
 - Optional addon rules in `implementation_flow_addons/` — include only after the user opts in.
   graphify is two files opted into together: `implementation_flow_addons/graphify.md` and
   `implementation_flow_addons/graphify_flow.md`
