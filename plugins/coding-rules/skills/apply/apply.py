@@ -565,6 +565,19 @@ def merge_json_permissions(path, entries):
     return changed, None
 
 
+def install_delegate_wrappers(project, plugin_root):
+    """Copy changed delegation wrappers into the project. Return whether changed."""
+    source_dir = plugin_root / "rules" / "delegate_setup_files"
+    changed = False
+    for name in ("coding_rules_delegate.sh", "coding_rules_delegate.ps1"):
+        source = read_text(source_dir / name)
+        destination = project / "tools" / name
+        if not destination.exists() or read_text(destination) != source:
+            write_text(destination, source)
+            changed = True
+    return changed
+
+
 def uninstall_local_hooks(project):
     """Remove the legacy per-project reminder-hook install.
 
@@ -681,6 +694,7 @@ def run(project, plugin_root, requested_rules, delegation):
     manifest["delegation"] = resolved_delegation
     report["delegation"] = resolved_delegation
     if resolved_delegation in DELEGATION_PERMS:
+        install_delegate_wrappers(project, plugin_root)
         settings_local = project / ".claude" / "settings.local.json"
         changed, err = merge_json_permissions(settings_local, DELEGATION_PERMS[resolved_delegation])
         if err:
@@ -767,6 +781,25 @@ def check_versions(plugin_root):
 # -------------------------------------------------------------------- self-test
 
 def self_test():
+    # Delegate wrappers are installed by the shared apply boundary and only
+    # rewritten when their shipped content changes.
+    wrapper_root = Path(tempfile.mkdtemp())
+    wrapper_plugin = Path(tempfile.mkdtemp())
+    wrapper_sources = wrapper_plugin / "rules" / "delegate_setup_files"
+    wrapper_sources.mkdir(parents=True)
+    for name, content in (("coding_rules_delegate.sh", "shell v1\n"),
+                          ("coding_rules_delegate.ps1", "powershell v1\n")):
+        (wrapper_sources / name).write_text(content, encoding="utf-8")
+    assert install_delegate_wrappers(wrapper_root, wrapper_plugin)
+    installed = wrapper_root / "tools" / "coding_rules_delegate.sh"
+    assert read_text(installed) == "shell v1\n"
+    installed_mtime = installed.stat().st_mtime_ns
+    assert not install_delegate_wrappers(wrapper_root, wrapper_plugin)
+    assert installed.stat().st_mtime_ns == installed_mtime
+    (wrapper_sources / "coding_rules_delegate.sh").write_text("shell v2\n", encoding="utf-8")
+    assert install_delegate_wrappers(wrapper_root, wrapper_plugin)
+    assert read_text(installed) == "shell v2\n"
+
     # parse_source_version_title
     v, t = parse_source_version_title("# Version\n3\n\ntext\n\n# My Title\n\nbody\n")
     assert (v, t) == (3, "# My Title"), (v, t)
@@ -1075,6 +1108,10 @@ def self_test():
     # must report `unchanged` (i.e. the manifest rel rename took).
     split_plugin = Path(tempfile.mkdtemp())
     (split_plugin / "rules").mkdir()
+    split_wrappers = split_plugin / "rules" / "delegate_setup_files"
+    split_wrappers.mkdir()
+    (split_wrappers / "coding_rules_delegate.sh").write_text("shell\n", encoding="utf-8")
+    (split_wrappers / "coding_rules_delegate.ps1").write_text("powershell\n", encoding="utf-8")
     (split_plugin / "rules" / "FOO.md").write_text(
         "# Version\n1\n\n# Foo Rules\n\nquality body\n", encoding="utf-8")
     (split_plugin / "rules" / FLOW_FILE).write_text(

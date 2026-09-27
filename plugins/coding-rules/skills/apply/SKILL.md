@@ -121,10 +121,6 @@ Gotchas seen in practice:
   blockers on a fresh project: the auto-generated plan filename not matching the
   plan's topic, and `graphify-out/graph.json` not existing yet. Say both up front
   in the prompt file for greenfield projects.
-- With `--delegation codex|deepseek` on a fresh project, apply.py wrote the
-  marker and the four permission entries but did NOT copy
-  `tools/coding_rules_delegate.sh` / `.ps1`. After the run, check `tools/` and
-  copy both from `rules/delegate_setup_files/` if missing.
 - The manifest version comes from `rules/versions.json`, not the rule file's own
   `# Version` block. If they disagree (seen: `FLUTTER_RULES.md` block 7,
   versions.json 6), the manifest records the stale number — report it.
