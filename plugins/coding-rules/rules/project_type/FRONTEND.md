@@ -1,5 +1,5 @@
 # Version
-1
+2
 
 Increase this version number whenever this rule file changes.
 
@@ -149,6 +149,19 @@ export function deleteEntry(id) {
   return json(`/entries/${id}`, { method: 'DELETE' });
 }
 ```
+
+### One Call per Page (BINDING)
+
+- Load all initial API data for a page or route's visible content with **one call**. Use an
+  existing list or detail operation when it is sufficient; use a screen overview endpoint when
+  the page needs several datasets.
+- Never call a detail endpoint for each item in a list (N+1), or fetch several lists to join or
+  count them in the browser.
+- Extra calls are allowed when the user opens a detail, requests the next page, searches, changes
+  a filter, performs a mutation, or opens a previously hidden tab whose content is loaded lazily.
+- If the API lacks the required overview endpoint, request it from the API project with
+  `/feedback:write` or a linked todo instead of fanning out calls. The server rule is
+  `project_type/REST_API.md` -> "Screen Overview Endpoints".
 
 ---
 

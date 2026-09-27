@@ -1,5 +1,5 @@
 # Version
-8
+9
 
 Increase this version number whenever this rule file changes.
 
@@ -1116,11 +1116,14 @@ An app that polls keeps downloading on every tick even when the server answer di
 holds its data in memory only. The server half of this contract is
 `project_type/REST_API.md` -> "Response Size and Mobile Data"; these are the client half.
 
-- **Ask the API for exactly what the screen shows.** Read slim lists (`fields=slim`), filter
-  server-side, and use one overview call per polling screen; fetch full detail only when a detail
-  screen opens, and send the last offset for growing logs and append. If the API lacks the
-  slim/overview/offset endpoint, request it from the API project instead of filtering client-side
-  (an app-only project may not install `REST_API.md`, so the one-line client statement stays here).
+- **Ask the API for exactly what the screen shows.** Load a screen's initial API data with one
+  call, reusing a list or detail operation when sufficient and requesting an overview endpoint
+  when several datasets are needed. Never call a detail endpoint once per list item (N+1). Read
+  slim lists (`fields=slim`), filter server-side, fetch full detail only when a detail screen
+  opens, and send the last offset for growing logs and append. If the API lacks the required
+  slim/overview/offset endpoint, request it from the API project instead of filtering client-side.
+  See `project_type/REST_API.md` -> "Screen Overview Endpoints" (an app-only project may not
+  install `REST_API.md`, so the client rule stays here).
 - **Conditional GET in the client.** A Dio interceptor in the `ApiClient` singleton — registered
   with `_dio.interceptors.add(EtagInterceptor(box))` the same way `flutter/IN_APP_DEBUGGER.md` adds
   the Logarte interceptor (switch the inline `_dio` above to its `_createDio()` form) — stores

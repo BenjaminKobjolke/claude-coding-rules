@@ -1,5 +1,5 @@
 # Version
-5
+6
 
 Increase this version number whenever this rule file changes.
 
@@ -507,6 +507,24 @@ class SharedHabitPresenter
 
 ---
 
+## Screen Overview Endpoints (BINDING)
+
+- Load all initial API data for a visible client page or screen with **one request**. Reuse an
+  existing list or detail endpoint when it already provides that data. When a screen otherwise
+  needs several calls (such as a list, counts, and related entities) or one detail call per list
+  item (N+1), add a purpose-built endpoint named after the screen, such as
+  `GET /api/v1/dashboard` or `GET /api/v1/habits/overview`.
+- Build the overview response with a Presenter; keep the controller thin.
+- Preload relations with Cycle `load()` as documented in `PHP_RULES.md` -> "Eager Loading with
+  `load()`", or use one batched repository query for unrelated records. Never query once per
+  row, which only moves the N+1 problem to the server.
+- Return only what the screen shows, using slim rows as described in "Response Size and Mobile
+  Data". Keep detail data on the detail endpoint.
+- Follow the existing endpoint documentation and Hoppscotch rules. Add one `ApiTestCase` test
+  asserting that the response contains every block required for the initial display.
+
+---
+
 ## Response Size and Mobile Data (BINDING)
 
 A phone screen that refreshes on a timer downloads every row with every long text field,
@@ -523,9 +541,8 @@ the user pays for (tickets-api "high data usage" incident, 2026-09).
 - **Filter and bound on the server.** Every list accepts the filters its callers need,
   multi-value as comma-separated (`status=error,answered`), and has a `limit`/pagination.
   Never ship "fetch everything, classify client-side".
-- **One overview endpoint per polling screen.** A screen that refreshes on a timer gets one
-  purpose-built endpoint (e.g. `GET /api/v1/attention`) returning exactly its data in one body,
-  built by a Presenter, instead of N calls per tick.
+- **One call per polling tick.** A polling screen reuses the single endpoint for its initial
+  data (see "Screen Overview Endpoints") — one call per tick, never N.
 - **Conditional GET on the protected group.** A middleware answers an unchanged `GET` with `304`
   and an empty body instead of resending identical JSON:
 
