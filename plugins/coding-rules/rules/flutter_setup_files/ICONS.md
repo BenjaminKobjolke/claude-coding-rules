@@ -1,3 +1,8 @@
+# Version
+1
+
+Increase this version number whenever this rule file changes.
+
 # App Icons (Flutter / Android)
 
 House standard for launcher and notification icons, plus the setup steps for a
@@ -42,8 +47,14 @@ Every Flutter Android app ships an adaptive icon. The launcher masks its
 foreground and background layers into its own shape, so the same icon may appear
 as a circle on one device and a squircle, rounded square, teardrop, or another
 shape on another. The app cannot force or remove that outer shape; it controls
-the foreground art and the background colour inside it through
+the foreground art and the background inside it through
 `adaptive_icon_foreground` and `adaptive_icon_background`.
+
+`adaptive_icon_background` accepts either a colour or an image path. A background
+image must be opaque, fill the entire canvas, and keep important details away
+from the edges because launchers crop and move the layer. Gradients, textures,
+and patterns are technically supported, but the house standard remains solid
+black.
 
 Without a real adaptive icon, a launcher may treat the legacy PNG as finished art,
 shrink it, and place it on its own plate — often the unwanted white circle around
