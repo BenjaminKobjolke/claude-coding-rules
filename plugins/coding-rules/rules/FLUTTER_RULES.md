@@ -1,5 +1,5 @@
 # Version
-9
+10
 
 Increase this version number whenever this rule file changes.
 
@@ -625,6 +625,10 @@ applied to dependencies instead of scripts.
 Whenever icons are involved — setting up a new project's launcher icon, replacing
 existing art, adding a notification icon, or debugging one that renders wrong —
 **read [`flutter_setup_files/ICONS.md`](flutter_setup_files/ICONS.md) first.**
+
+Every Android app ships an **adaptive icon**: the launcher chooses its mask shape,
+the app controls the foreground and background colour, and a legacy-only icon may
+get a launcher-drawn plate — often a white circle.
 
 House style is a **solid black background with simple white line art**. The guide
 covers why (an adaptive icon's background layer must be opaque, so transparent is

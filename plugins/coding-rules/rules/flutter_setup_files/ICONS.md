@@ -10,7 +10,7 @@ icons read as one family and every one of them survives being masked, tinted,
 and shrunk to 24 px.
 
 - **Background: `#000000`.** Not brand colour, not a gradient, not transparent
-  (see "Why not transparent" below).
+  (see "Adaptive icons are mandatory" above).
 - **Art: pure white `#FFFFFF`, line-drawn, one subject.** No fills, no gradients,
   no shadows, no text. One recognisable object — a monitor, a clock, a box.
 - **Strokes: thick and even.** The same art gets rendered at 24 px in the status
@@ -33,6 +33,33 @@ confused; wiring one does not wire the other.
 | Source art | `assets/icon/app_icon*.png` | `assets/icon/notification_icon.png` |
 | Generated into | `mipmap-*/ic_launcher.png`, `drawable-*/ic_launcher_foreground.png` | `drawable-*/ic_stat_<app>.png` |
 | Generator | `flutter_launcher_icons` | Pillow snippet (below) |
+
+---
+
+## Adaptive icons are mandatory
+
+Every Flutter Android app ships an adaptive icon. The launcher masks its
+foreground and background layers into its own shape, so the same icon may appear
+as a circle on one device and a squircle, rounded square, teardrop, or another
+shape on another. The app cannot force or remove that outer shape; it controls
+the foreground art and the background colour inside it through
+`adaptive_icon_foreground` and `adaptive_icon_background`.
+
+Without a real adaptive icon, a launcher may treat the legacy PNG as finished art,
+shrink it, and place it on its own plate — often the unwanted white circle around
+an icon. Fix that with a proper adaptive icon, never by drawing a circle into the
+source PNG.
+
+**An adaptive icon's background layer must be opaque.** Launchers can
+parallax-animate the two layers against each other. A transparent background
+layer is undefined behaviour: some launchers render it black, some white, and
+some show artifacts mid-animation.
+
+Black is the deliberate house choice, not a fallback that happens to work.
+
+To retrofit a legacy-only project, add `app_icon_foreground.png` with the safe-zone
+padding described below, add both `adaptive_icon_*` keys, and rerun the generator
+— the same steps 1–4 used for a new project.
 
 ---
 
@@ -79,26 +106,17 @@ fvm dart run flutter_launcher_icons
 ```
 
 This rewrites `android/app/src/main/res/values/colors.xml`
-(`ic_launcher_background`) and every `mipmap-*` / `drawable-*` PNG. **Never edit
-those generated files by hand** — the next run overwrites them.
+(`ic_launcher_background`), every `mipmap-*` / `drawable-*` PNG, and
+`android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml`. That XML is the
+generated `<adaptive-icon>` definition referencing the foreground and background
+resources. **Never edit any of these generated files by hand** — the next run
+overwrites them.
 
 ### 5. Add the notification icon
 
 See "Notification icon" below. A project with any notification — a foreground
 service, a local notification, a push — needs one. Skipping it leaves a white
 blob in the status bar.
-
----
-
-## Why not transparent
-
-**An adaptive icon's background layer must be opaque.** The launcher masks
-background and foreground into its own shape (circle, squircle, teardrop — it
-varies by device) and parallax-animates the two layers against each other. A
-transparent background layer is undefined behaviour: some launchers render it
-black, some white, some show artifacts mid-animation.
-
-Black is the deliberate house choice, not a fallback that happens to work.
 
 ## Both background definitions must change together
 
@@ -241,13 +259,16 @@ service falls back to the app icon and the status bar shows a white blob again.
 
 ## Verifying an icon change
 
-1. `grep ic_launcher_background android/app/src/main/res/values/colors.xml`
-2. Corner pixels of `assets/icon/app_icon.png` are the intended background colour
-3. `tools/build_debug.bat`, install on a device
-4. Launcher: check the app drawer **and** the task switcher
-5. Post a notification — the status bar must show the silhouette, not a solid
+1. `android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml` exists and
+   contains `<adaptive-icon>`; if it does not, the project ships only a legacy
+   icon and risks a launcher-drawn white plate
+2. `grep ic_launcher_background android/app/src/main/res/values/colors.xml`
+3. Corner pixels of `assets/icon/app_icon.png` are the intended background colour
+4. `tools/build_debug.bat`, install on a device
+5. Launcher: check the app drawer **and** the task switcher
+6. Post a notification — the status bar must show the silhouette, not a solid
    square. Check both the collapsed status bar and the expanded shade
-6. If `minSdk < 26`: an API 24/25 emulator exercises the legacy non-adaptive path
+7. If `minSdk < 26`: an API 24/25 emulator exercises the legacy non-adaptive path
 
 ## Documenting it per project
 
