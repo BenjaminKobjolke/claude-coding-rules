@@ -22,5 +22,6 @@
   "project_type/REST_API.md": 6,
   "implementation_flow_addons/graphify.md": 13,
   "implementation_flow_addons/graphify_flow.md": 1,
-  "DESIGN_RULES.md": 1
+  "DESIGN_RULES.md": 1,
+  "implementation_flow_addons/mcp_server.md": 1
 }

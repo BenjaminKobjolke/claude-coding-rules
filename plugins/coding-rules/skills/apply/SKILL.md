@@ -35,7 +35,9 @@ Always read `${CLAUDE_PLUGIN_ROOT}/rules/COMMON_RULES.md` and `${CLAUDE_PLUGIN_R
   serves HTTP (`EthernetServer` / `WiFiServer` in the code); skip it otherwise
 - Optional addon rules in `implementation_flow_addons/` — include only after the user opts in.
   graphify is two files opted into together: `implementation_flow_addons/graphify.md` and
-  `implementation_flow_addons/graphify_flow.md`
+  `implementation_flow_addons/graphify_flow.md`. `implementation_flow_addons/mcp_server.md` is a
+  single file (lands in `CODING_RULES.md`) — ask about it for PHP REST APIs that expose, or
+  should expose, an MCP server via `xida/api-mcp`
 
 If `<project>/coding-rules.json` already exists, read it: its `rules` map is the
 prior selection (keys are paths relative to `rules/`, e.g. `PYTHON_RULES.md`,
