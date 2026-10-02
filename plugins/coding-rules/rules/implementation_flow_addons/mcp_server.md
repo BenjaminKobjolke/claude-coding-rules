@@ -1,5 +1,5 @@
 # Version
-1
+2
 
 Increase this version number whenever this rule file changes.
 
@@ -70,6 +70,9 @@ behind the library's `BearerAuthMiddleware`, outside the `/api/v1` group. CORS a
   re-checked per request, so no revocation store is needed. The frontend shows the token once
   with a ready `claude mcp add --transport http <name> <mcp_url> --header "Authorization: Bearer
   <token>"` line.
+- `claude mcp add --scope project` writes that token into `.mcp.json`, a file meant to be
+  committed. The frontend and `docs/MCP.md` say so: gitignore `.mcp.json`, or use
+  `"Authorization": "Bearer ${<APP>_MCP_TOKEN}"` with the env var set locally.
 - Browser connectors (claude.ai) need OAuth 2.1 via the library's `Oauth\` seams (tickets-api).
 
 ## Deployment
@@ -77,7 +80,34 @@ behind the library's `BearerAuthMiddleware`, outside the `/api/v1` group. CORS a
 - `data/mcp-sessions/` writable (`.gitkeep` tracked, contents gitignored); `data/` writable for
   `data/mcp-tool-cache/` (gitignored, content-keyed, safe to delete).
 - `root_url` config key (no trailing slash): feeds `mcp_url`, the DNS-rebinding allowlist and
-  the 401 `resource_metadata` hint.
+  the 401 `resource_metadata` hint. `config/app.php` is gitignored, so the FTP sync never
+  uploads it — set `root_url` on the live server by hand on first deploy.
+
+### DNS-rebinding allowlist and `root_url` (BINDING)
+
+The library wraps `/mcp` in the SDK's `DnsRebindingProtectionMiddleware`. Allowed hosts =
+`localhost`, `127.0.0.1`, `[::1]`, the host of `root_url`, plus `allowedOriginHosts`. CLI
+clients (Claude Code) send no `Origin`, so the middleware checks the `Host` header instead.
+Missing `root_url` on a public host = every client gets `403 Forbidden: Invalid Host header.`
+before auth runs (erp-api live incident, 2026-09-30).
+
+- **Claude Code misreports it** as "Server rejected the configured Authorization header (HTTP
+  403). Check that the token is valid" — the token is fine. Read the response body: `Invalid
+  Host header.` / `Invalid Origin header.` = allowlist; `401` + `WWW-Authenticate` = token.
+  Check with the curl `initialize` from `docs/MCP.md` against the live URL.
+- **Fallbacks must not disagree.** The `mcp-token` endpoint may derive `mcp_url` from the
+  request when `root_url` is unset, but the allowlist then falls back to localhost — the
+  frontend shows a correct URL while `/mcp` rejects every call. A working displayed URL proves
+  nothing about the allowlist.
+- **Never fall back to the request's `Host`** for the allowlist: allowing whatever Host arrives
+  voids the rebinding protection. Keep the localhost fallback (local dev) and log a
+  `warning` when `root_url` is missing (`MCP root_url not configured, /mcp accepts localhost
+  Hosts only`) in the container's `getMcpConfig()`, so the misconfig shows in the app log.
+- **Reverse proxy:** nginx in front of Apache can forward a different `Host`. The library logs
+  `MCP /mcp connect attempt` with the received `host` — if it is not the public domain, fix the
+  proxy (`proxy_set_header Host $host;`) or add that host to `allowedOriginHosts`.
+- `docs/MCP.md` shows the **real live** `/mcp` URL in its `claude mcp add` example and the
+  matching `root_url` value right beside it, not only in the deployment list.
 - Spec path handed to the library is an absolute **native** path; cebe's `ReferenceContext`
   rejects `X:/...` and `..` segments.
 - Upload `vendor/devizzent/cebe-php-openapi`, or the first `/mcp` request fails with
