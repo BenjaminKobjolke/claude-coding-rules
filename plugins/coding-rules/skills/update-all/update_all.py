@@ -157,7 +157,9 @@ def scan_projects(folders, ignore_prefixes, plugin_root, dry_run=False):
                 print(f"needs decision: {project}: {report['needs_user_decision']}")
                 counts["decision"] += 1
             else:
-                print(f"updated: {project}: {_details(outdated)}")
+                kept = report.get("split_kept", [])
+                suffix = f" (kept: {', '.join(kept)})" if kept else ""
+                print(f"updated: {project}: {_details(outdated)}{suffix}")
                 counts["updated"] += 1
 
     print(
@@ -261,6 +263,24 @@ def self_test():
         raise AssertionError("empty ignore prefix should fail")
     except SettingsError:
         pass
+    python_source = rules / "PYTHON_RULES.md"
+    python_source.write_text("# Version\n6\n\n# Python Rules (uv)\n\n## GUI Framework\n\nold GUI\n", encoding="utf-8")
+    apply.save_json(rules / "versions.json", {"pointer": 1, "FOO.md": 2, "PYTHON_RULES.md": 6})
+    desktop = repo("desktop")
+    (desktop / "pyproject.toml").write_text('dependencies = ["pyside6"]\n', encoding="utf-8")
+    apply.run(desktop, plugin, ["PYTHON_RULES.md"], "neither")
+    (rules / "python").mkdir()
+    (rules / "python" / "GUI.md").write_text(
+        "# Version\n1\n\n# Python Desktop GUI (PySide6)\n\nnew GUI\n", encoding="utf-8")
+    python_source.write_text("# Version\n7\n\n# Python Rules (uv)\n\nlean\n", encoding="utf-8")
+    apply.save_json(rules / "versions.json", {"pointer": 1, "FOO.md": 2,
+                    "PYTHON_RULES.md": 7, "python/GUI.md": 1})
+    output = io.StringIO()
+    with contextlib.redirect_stdout(output):
+        assert scan_projects([root], ("_old_",), plugin) == 0
+    assert "kept: python/GUI.md" in output.getvalue(), output.getvalue()
+    assert "new GUI" in apply.read_text(desktop / apply.RULES_FILE)
+
     print("self-test OK")
 
 

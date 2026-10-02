@@ -46,7 +46,19 @@ LEGACY_RELS = {
 }
 # Titles a source doc is also known by, so an old block isn't mistaken for
 # user-authored content by split_orphan_tail during the migration.
-HEADING_ALIASES = {FLOW_TITLE: {LEGACY_FLOW_TITLE}}
+HEADING_ALIASES = {
+    FLOW_TITLE: {LEGACY_FLOW_TITLE},
+    "# Essential Additional Rules (must-have)": {"# 8 Essential Additional Rules (must-have)"},
+}
+
+SPLITS = {"PYTHON_RULES.md": (7, {
+    "python/WEB_TEMPLATES.md": ("jinja2", "flask"),
+    "python/GUI.md": ("pyside6",),
+    "python/LOCALIZATION.md": ("python-localization", "python_localization", "lang/en.json"),
+    "python/RELEASE.md": ("build_version.txt", "tools/release/"),
+    "python/INSTALLER.md": ("installer/", "tools/build_installer.bat"),
+    "python/DATABASE.md": ("sqlalchemy",),
+})}
 
 POINTER_TITLE = "# Coding Rules (Pointer)"
 POINTER_BLOCK_TEMPLATE = """# Version
@@ -223,12 +235,12 @@ def source_headings(src_text, all_levels=False):
     return heads
 
 
-def split_orphan_tail(block_text, src_text, all_levels=False):
+def split_orphan_tail(block_text, src_text, all_levels=False, extra_headings=()):
     """Split an existing block into (managed_text, orphan_text) at the first
     non-fenced heading the source doc doesn't contain. The orphan is
     user-authored content that must survive a block replacement. See
     source_headings() for what all_levels changes."""
-    known = source_headings(src_text, all_levels=all_levels)
+    known = source_headings(src_text, all_levels=all_levels) | set(extra_headings)
     lines = block_text.splitlines(keepends=True)
     in_fence = False
     for i, line in enumerate(lines):
@@ -471,15 +483,16 @@ def migrate_legacy(text, title_to_rel, plugin_root=None):
     separate block -- is preserved verbatim (regression: previously deleted
     whole). Returns (new_text, migrated_rel_to_version, unrecognized_titles)."""
     if not text:
-        return text, {}, []
+        return text, {}, [], []
     lines, blocks = parse_managed(text)
     if not blocks:
-        return strip_legacy_imports(text), {}, []
+        return strip_legacy_imports(text), {}, [], []
 
     header_end = blocks[0]["start"]
     result_lines = list(lines[:header_end])
     migrated = {}
     unrecognized = []
+    tailored = []
     for b in blocks:
         if b["title"] == POINTER_TITLE:
             result_lines.extend(lines[b["start"]:b["end"]])
@@ -487,6 +500,10 @@ def migrate_legacy(text, title_to_rel, plugin_root=None):
         rel = title_to_rel.get(b["title"])
         ver = parse_block_version(b["text"]) if rel else None
         if rel and ver is not None:
+            if block_is_tailored(b["text"]):
+                tailored.append(rel)
+                result_lines.extend(lines[b["start"]:b["end"]])
+                continue
             migrated[rel] = ver
             src_path = (plugin_root / "rules" / rel) if plugin_root else None
             try:
@@ -498,13 +515,20 @@ def migrate_legacy(text, title_to_rel, plugin_root=None):
                 # rather than silently delete unknown user content.
                 result_lines.extend(lines[b["start"]:b["end"]])
             else:
-                _, orphan = split_orphan_tail(b["text"], src_text, all_levels=True)
+                extra = set()
+                if rel in SPLITS and ver < SPLITS[rel][0]:
+                    for optional in SPLITS[rel][1]:
+                        optional_path = plugin_root / "rules" / optional
+                        if optional_path.exists():
+                            extra |= source_headings(read_text(optional_path), all_levels=True)
+                _, orphan = split_orphan_tail(b["text"], src_text, all_levels=True,
+                                              extra_headings=extra)
                 if orphan:
                     result_lines.append(orphan)
             continue
         unrecognized.append(b["title"] or "(untitled block)")
         result_lines.extend(lines[b["start"]:b["end"]])
-    return strip_legacy_imports("".join(result_lines)), migrated, unrecognized
+    return strip_legacy_imports("".join(result_lines)), migrated, unrecognized, tailored
 
 
 def apply_pointer(claude_text, manifest_pointer_version, source_version):
@@ -628,6 +652,36 @@ def uninstall_local_hooks(project):
     return "migrated" if removed else "plugin"
 
 
+def project_uses(project, markers):
+    pyproject = project / "pyproject.toml"
+    manifest_text = read_text(pyproject).lower() if pyproject.exists() else ""
+    # ponytail: substring matching also sees comments and may keep extra rules;
+    # parse dependencies with tomllib if false positives become a problem.
+    return any((project / marker).exists() or marker.lower() in manifest_text
+               for marker in markers)
+
+
+def split_supplements(project, blocks, migrated, manifest_rules, requested, title_to_rel):
+    kept = []
+    for parent, (split_version, optional_files) in SPLITS.items():
+        if parent not in requested:
+            continue
+        existing = next((b for b in blocks if title_to_rel.get(b["title"]) == parent), None)
+        if existing is None and parent not in migrated:
+            continue
+        if existing is not None and block_is_tailored(existing["text"]):
+            continue
+        applied = manifest_rules.get(parent)
+        if applied is None:
+            applied = parse_block_version(existing["text"]) if existing else migrated[parent]
+        if applied is None or applied >= split_version:
+            continue
+        for rel, markers in optional_files.items():
+            if rel not in requested and project_uses(project, markers):
+                kept.append(rel)
+    return kept
+
+
 # -------------------------------------------------------------------- run
 
 def run(project, plugin_root, requested_rules, delegation):
@@ -639,15 +693,21 @@ def run(project, plugin_root, requested_rules, delegation):
     # load so a migrated project reports `unchanged`, not a full re-apply.
     manifest["rules"] = {LEGACY_RELS.get(rel, rel): ver for rel, ver in manifest["rules"].items()}
 
-    report = {"rules": [], "pointer": None, "delegation": None, "hooks": None,
+    report = {"rules": [], "split_kept": [], "pointer": None, "delegation": None, "hooks": None,
               "needs_user_decision": [], "errors": []}
 
     # Phase B: migrate legacy blocks out of CLAUDE.md
     claude_path = project / "CLAUDE.md"
     claude_text = read_text(claude_path) if claude_path.exists() else ""
     title_to_rel = build_title_index(plugin_root, versions)
-    claude_text, migrated, unrecognized = migrate_legacy(claude_text, title_to_rel, plugin_root)
+    claude_text, migrated, unrecognized, tailored = migrate_legacy(
+        claude_text, title_to_rel, plugin_root)
     requested = list(dict.fromkeys(LEGACY_RELS.get(rel, rel) for rel in requested_rules))
+    for rel in tailored:
+        if rel in requested:
+            requested.remove(rel)
+        report["needs_user_decision"].append(
+            {"phase": "B", "detail": f"Tailored legacy block in CLAUDE.md: {rel} — hand-merge required"})
     for rel, ver in migrated.items():
         manifest["rules"].setdefault(rel, ver)
         if rel not in requested:
@@ -662,6 +722,9 @@ def run(project, plugin_root, requested_rules, delegation):
     crm_header, crm_blocks = read_coding_rules(crm_path)
     flow_header, flow_blocks = read_coding_rules(flow_path)
     crm_blocks, flow_blocks, _moved = migrate_flow_blocks(crm_blocks, flow_blocks)
+    report["split_kept"] = split_supplements(
+        project, crm_blocks, migrated, manifest["rules"], requested, title_to_rel)
+    requested.extend(report["split_kept"])
 
     rules_report = []
     merged = []
@@ -727,6 +790,8 @@ def run(project, plugin_root, requested_rules, delegation):
 def print_report(report):
     for item in report["rules"]:
         print(f"  rule {item['rule']}: {item['status']}")
+    if report["split_kept"]:
+        print(f"  kept: {', '.join(report['split_kept'])}")
     print(f"  pointer: {report['pointer']}")
     print(f"  delegation: {report['delegation']}")
     print(f"  hooks: {report['hooks']}")
@@ -740,16 +805,12 @@ def print_report(report):
 
 def check_versions(plugin_root):
     """Only files that actually start with a '# Version' header are versioned
-    rule docs subject to this check -- *_setup_files/ templates and plain
-    workflow docs (CREATE_RELEASE_NOTES.md, PHP_UPGRADE_TO_NEWER_VERSION.md, ...)
-    are skipped, not flagged."""
+    rule docs subject to this check. Unversioned setup templates are skipped."""
     versions_path = plugin_root / "rules" / "versions.json"
     versions = load_json(versions_path, {})
     problems = []
     seen = set()
     for md in sorted((plugin_root / "rules").rglob("*.md")):
-        if "_setup_files" in md.parts:
-            continue
         text = read_text(md)
         first_line = text.splitlines()[0].strip() if text.strip() else ""
         if first_line != "# Version":
@@ -1024,7 +1085,7 @@ def self_test():
         "# Version\n1\n\n# Foo Rules\n\nnew body\n", encoding="utf-8")
     title_to_rel = {"# Foo Rules": "FOO.md"}
     claude_src = "Preamble.\n\n# Version\n1\n\n# Foo Rules\n\nold body\n\n# Version\n1\n\n# Custom Section\n\nkeep me\n"
-    new_text, migrated_map, unrecognized = migrate_legacy(claude_src, title_to_rel, legacy_plugin)
+    new_text, migrated_map, unrecognized, tailored = migrate_legacy(claude_src, title_to_rel, legacy_plugin)
     assert migrated_map == {"FOO.md": 1}, migrated_map
     assert unrecognized == ["# Custom Section"], unrecognized
     assert "Foo Rules" not in new_text and "Custom Section" in new_text and "Preamble." in new_text
@@ -1042,7 +1103,7 @@ def self_test():
         "# Version\n1\n\n# Bar Rules\n\nold rule body\n\n"
         "## Project Notes\n\nkeep me too\n"
     )
-    new_text_tail, migrated_tail, _ = migrate_legacy(claude_src_tail, title_to_rel_bar, legacy_plugin)
+    new_text_tail, migrated_tail, _, _ = migrate_legacy(claude_src_tail, title_to_rel_bar, legacy_plugin)
     assert migrated_tail == {"BAR.md": 1}, migrated_tail
     assert "old rule body" not in new_text_tail and "Bar Rules" not in new_text_tail, new_text_tail
     assert "## Project Notes" in new_text_tail and "keep me too" in new_text_tail, new_text_tail
@@ -1052,7 +1113,7 @@ def self_test():
     # keep the whole block rather than silently delete unknown content.
     title_to_rel_missing = {"# Baz Rules": "BAZ_MISSING.md"}
     claude_src_missing = "# Version\n1\n\n# Baz Rules\n\nbody\n\n## Something\n\nstuff\n"
-    new_text_missing, migrated_missing, _ = migrate_legacy(
+    new_text_missing, migrated_missing, _, _ = migrate_legacy(
         claude_src_missing, title_to_rel_missing, legacy_plugin)
     assert migrated_missing == {"BAZ_MISSING.md": 1}, migrated_missing
     assert "body" in new_text_missing and "## Something" in new_text_missing and "stuff" in new_text_missing
@@ -1148,6 +1209,107 @@ def self_test():
     assert split_report2["pointer"] == "unchanged", split_report2
     assert read_text(split_project / RULES_FILE) == crm_after
     assert read_text(split_project / FLOW_FILE) == flow_after
+
+    # Python v6 inline sections move to optional blocks on the first v7 apply.
+    for desktop in (True, False):
+        split_plugin = Path(tempfile.mkdtemp())
+        split_rules = split_plugin / "rules"
+        (split_rules / "python").mkdir(parents=True)
+        old_python = "# Version\n6\n\n# Python Rules (uv)\n\n## GUI Framework\n\nold GUI\n\n# 8 Essential Additional Rules (must-have)\n\nold essentials\n"
+        new_python = "# Version\n7\n\n# Python Rules (uv)\n\n# Essential Additional Rules (must-have)\n\nnew essentials\n"
+        (split_rules / "PYTHON_RULES.md").write_text(old_python, encoding="utf-8")
+        save_json(split_rules / "versions.json", {"pointer": 1, "PYTHON_RULES.md": 6})
+        split_project = Path(tempfile.mkdtemp())
+        if desktop:
+            (split_project / "pyproject.toml").write_text('dependencies = ["PySide6>=6"]\n', encoding="utf-8")
+        run(split_project, split_plugin, ["PYTHON_RULES.md"], "neither")
+        with (split_project / RULES_FILE).open("a", encoding="utf-8") as f:
+            f.write("\n# Project Notes\n\nkeep this\n")
+        (split_rules / "PYTHON_RULES.md").write_text(new_python, encoding="utf-8")
+        (split_rules / "python" / "GUI.md").write_text("# Version\n1\n\n# Python Desktop GUI (PySide6)\n\n## GUI Framework\n\nGUI rules\n", encoding="utf-8")
+        (split_rules / "python" / "DATABASE.md").write_text("# Version\n1\n\n# Python Database Access (SQLAlchemy)\n\nDB rules\n", encoding="utf-8")
+        save_json(split_rules / "versions.json", {"pointer": 1, "PYTHON_RULES.md": 7,
+                  "python/GUI.md": 1, "python/DATABASE.md": 1})
+        split_report = run(split_project, split_plugin, ["PYTHON_RULES.md"], "keep")
+        assert split_report["split_kept"] == (["python/GUI.md"] if desktop else []), split_report
+        result = read_text(split_project / RULES_FILE)
+        assert ("GUI rules" in result) == desktop and "DB rules" not in result, result
+        assert "old GUI" not in result and result.count("# Essential Additional Rules") == 1, result
+        assert "# Project Notes" in result and "keep this" in result, result
+        assert load_json(split_project / "coding-rules.json", {})["rules"] == (
+            {"PYTHON_RULES.md": 7, "python/GUI.md": 1} if desktop else {"PYTHON_RULES.md": 7})
+        again = run(split_project, split_plugin, ["PYTHON_RULES.md"], "keep")
+        assert again["split_kept"] == [] and all(x["status"] == "unchanged" for x in again["rules"]), again
+        assert read_text(split_project / RULES_FILE) == result
+
+    marker_project = Path(tempfile.mkdtemp())
+    (marker_project / "pyproject.toml").write_text('dependencies = ["PySide6>=6"]\n', encoding="utf-8")
+    assert project_uses(marker_project, ("pyside6",))
+    assert not project_uses(marker_project, ("sqlalchemy",))
+    (marker_project / "installer").mkdir()
+    assert project_uses(marker_project, ("installer/",))
+    assert not project_uses(Path(tempfile.mkdtemp()), ("installer/", "pyside6"))
+
+    fresh = Path(tempfile.mkdtemp())
+    (fresh / "pyproject.toml").write_text('dependencies = ["pyside6"]\n', encoding="utf-8")
+    fresh_report = run(fresh, split_plugin, ["PYTHON_RULES.md"], "neither")
+    assert fresh_report["split_kept"] == [], fresh_report
+
+    tailored_project = Path(tempfile.mkdtemp())
+    write_text(tailored_project / RULES_FILE, MANAGED_COMMENT + "\n\n" +
+               old_python.replace("# Python Rules (uv)\n", "# Python Rules (uv)\n<!-- tailored -->\n"))
+    (tailored_project / "pyproject.toml").write_text('dependencies = ["pyside6"]\n', encoding="utf-8")
+    save_json(tailored_project / "coding-rules.json", {"rules": {"PYTHON_RULES.md": 6}})
+    tailored_report = run(tailored_project, split_plugin, ["PYTHON_RULES.md"], "neither")
+    assert tailored_report["split_kept"] == []
+    assert tailored_report["rules"][0]["status"] == "tailored-stale"
+    assert read_text(tailored_project / RULES_FILE).endswith(old_python.replace(
+        "# Python Rules (uv)\n", "# Python Rules (uv)\n<!-- tailored -->\n"))
+
+    legacy_project = Path(tempfile.mkdtemp())
+    (legacy_project / "pyproject.toml").write_text('dependencies = ["pyside6"]\n', encoding="utf-8")
+    write_text(legacy_project / "CLAUDE.md", old_python + "\n# Project Notes\n\nkeep me\n")
+    legacy_report = run(legacy_project, split_plugin, ["PYTHON_RULES.md"], "neither")
+    assert legacy_report["split_kept"] == ["python/GUI.md"], legacy_report
+    assert "old GUI" not in read_text(legacy_project / "CLAUDE.md")
+    assert "# Project Notes\n\nkeep me" in read_text(legacy_project / "CLAUDE.md")
+    assert "GUI rules" in read_text(legacy_project / RULES_FILE)
+
+    tailored_legacy = Path(tempfile.mkdtemp())
+    tailored_text = old_python.replace("# Python Rules (uv)\n", "# Python Rules (uv)\n<!-- tailored -->\n")
+    write_text(tailored_legacy / "CLAUDE.md", tailored_text)
+    tailored_legacy_report = run(tailored_legacy, split_plugin, ["PYTHON_RULES.md"], "neither")
+    assert tailored_legacy_report["split_kept"] == []
+    assert any("Tailored legacy block" in d["detail"] for d in tailored_legacy_report["needs_user_decision"])
+    assert tailored_text in read_text(tailored_legacy / "CLAUDE.md")
+
+    setup_plugin = Path(tempfile.mkdtemp())
+    setup_dir = setup_plugin / "rules" / "example_setup_files"
+    setup_dir.mkdir(parents=True)
+    (setup_dir / "SETUP.md").write_text("# Version\n1\n\n# Setup\n", encoding="utf-8")
+    save_json(setup_plugin / "rules" / "versions.json", {"example_setup_files/SETUP.md": 1})
+    check_versions(setup_plugin)
+    for indexed in ({}, {"example_setup_files/SETUP.md": 2}):
+        save_json(setup_plugin / "rules" / "versions.json", indexed)
+        try:
+            check_versions(setup_plugin)
+            raise AssertionError("setup version mismatch was accepted")
+        except SystemExit as exc:
+            assert exc.code == 1
+
+    shipped_root = Path(__file__).resolve().parents[2]
+    shipped_versions = load_json(shipped_root / "rules" / "versions.json", {})
+    for rel in SPLITS["PYTHON_RULES.md"][1]:
+        assert rel in shipped_versions and (shipped_root / "rules" / rel).exists(), rel
+    lean = read_text(shipped_root / "rules" / "PYTHON_RULES.md")
+    assert all(heading not in lean for heading in ("## Template Engine", "## GUI Framework", "## Localization",
+        "## Jinja2 Integration", "## Release Workflow", "## Windows Installer (NSIS)",
+        "## 6) Database access uses SQLAlchemy ORM"))
+    assert all(term in lean for term in ("## CLI Menus", "## Project Setup Scripts", "MagicMock",
+        "## Structured Logging", "## Self-Describing Classes"))
+    graph = read_text(shipped_root / "rules" / "implementation_flow_addons" / "graphify.md")
+    assert "One-time setup" not in graph and "Rules to paste" not in graph
+    assert "## One-time setup" in read_text(shipped_root / "rules" / "graphify_setup_files" / "SETUP.md")
 
     print("self-test OK")
 

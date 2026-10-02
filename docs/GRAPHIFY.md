@@ -8,7 +8,9 @@ graph before grepping and refreshes it after every code change.
 Rule sources: `plugins/coding-rules/rules/implementation_flow_addons/graphify.md` (lands in
 `CODING_RULES.md`) and `implementation_flow_addons/graphify_flow.md` (lands in
 `IMPLEMENTATION_FLOW.md`) — both versioned; copied
-into the project by `/coding-rules:apply`). Refresh bat template:
+into the project by `/coding-rules:apply`). One-time setup guidance is
+`plugins/coding-rules/rules/graphify_setup_files/SETUP.md` and is not copied.
+Refresh bat template:
 `plugins/coding-rules/rules/implementation_flow_addons/graphify_update.bat`.
 
 Opt-in per project — `/coding-rules:apply` asks before adding it.

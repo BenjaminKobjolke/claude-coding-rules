@@ -19,3 +19,5 @@ optional `ignore_prefixes`.
 Show the user the command's summary. For every project reported as `needs decision`, tell the
 user to run `/coding-rules:apply` in that project: tailored stale rules, source-version conflicts,
 and unrecognized rules need judgment and are deliberately not changed by the bulk updater.
+Relay any `kept:` files shown on updated projects. If a project lost a section it
+uses, run `/coding-rules:apply` there to add that optional file.

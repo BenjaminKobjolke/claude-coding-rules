@@ -28,6 +28,11 @@ Always read `${CLAUDE_PLUGIN_ROOT}/rules/COMMON_RULES.md` and `${CLAUDE_PLUGIN_R
 
 - Always: `COMMON_RULES.md` and `IMPLEMENTATION_FLOW.md`
 - Language-specific rules: `PHP_RULES.md`, `PYTHON_RULES.md`, `CSHARP_RULES.md`, `FLUTTER_RULES.md`, `SVELTE_RULES.md`, `SCSS_RULES.md`, `ARDUINO_RULES.md`, `AUTOHOTKEY_RULES.md`, `UNITY_CSHARP_RULES.md`, `WORDPRESS_RULES.md`
+- Python optional rules: `python/WEB_TEMPLATES.md` for Jinja2 or Flask web templates;
+  `python/GUI.md` for PySide6 desktop apps; `python/LOCALIZATION.md` for translated
+  content; `python/RELEASE.md` for release tooling; `python/INSTALLER.md` for NSIS
+  installers; `python/DATABASE.md` for SQLAlchemy. On first setup, pick by project
+  type and ask when unsure.
 - Project-type rules: see `PROJECT_TYPES.md` for the overview, files in `project_type/`
 - Supplemental rules: `DESIGN_RULES.md` — include when the project has a user interface
   (desktop, web, mobile, TUI); skip it for libraries, APIs, and headless tools
@@ -40,9 +45,16 @@ Always read `${CLAUDE_PLUGIN_ROOT}/rules/COMMON_RULES.md` and `${CLAUDE_PLUGIN_R
   should expose, an MCP server via `xida/api-mcp`
 
 If `<project>/coding-rules.json` already exists, read it: its `rules` map is the
-prior selection (keys are paths relative to `rules/`, e.g. `PYTHON_RULES.md`,
+project's declared selection (keys are paths relative to `rules/`, e.g. `PYTHON_RULES.md`,
 `project_type/REST_API.md`). On a re-run, only ask the user about deltas
 (newly-relevant languages/project types) instead of re-deriving the whole list.
+When an existing Python project first crosses the v7 split, `apply.py` keeps
+detected optional files automatically and reports them in `split_kept`. Tell the
+user which files were kept and which inline sections went away. To opt out of an
+optional file, remove its copied block and its `rules` key from the manifest.
+
+Read `graphify_setup_files/SETUP.md` when wiring graphify up; it is setup guidance,
+never a source to pass in `--rules`.
 
 Optional addon rules (`implementation_flow_addons/*.md`) are the one exception: re-ask
 about every addon NOT already present in the `rules` map on every run, even
@@ -108,7 +120,8 @@ and writes `<project>/coding-rules.json`. Parse the JSON report:
 - `errors` items (e.g. an unparsable `settings.json`) — report verbatim; the
   file was left untouched.
 - Otherwise summarize what changed (which rule blocks were updated, pointer
-  status, delegation, hook status) for the user.
+  status, delegation, hook status) for the user. Include `split_kept` and the
+  inline sections removed from the Python base file.
 
 Gotchas seen in practice:
 
@@ -145,6 +158,9 @@ check doesn't apply; just note "Running the manual coding-rules-apply flow."
 If the project has a `CLAUDE.md`, scan it for legacy inlined rule blocks: a `# Version` line followed by a number, followed by a rule-document title that matches one of the shipped rule files (e.g. `# Common Rules (All Languages)`, `# Implementation Flow (All Languages)`, its pre-split title `# AI Workflow Rules (All Languages)`, `# PHP Rules`, …). A block ends at the next `# Version` line, the pointer block, or end of file.
 
 - Move every recognized block verbatim into its destination file — `IMPLEMENTATION_FLOW.md` for the flow sources, `CODING_RULES.md` for everything else (create the file if missing).
+- For an old Python v6 block, the headings now in `python/*.md` are still managed:
+  remove them from `CLAUDE.md`, preserve real project notes, and copy the optional
+  files this project uses. Leave a tailored copy for a hand merge.
 - If a `# Version` block has an unrecognized title, ask the user before touching it — it may be a user-authored versioned section.
 - Preserve every other line of `CLAUDE.md` untouched and in order.
 - If `CLAUDE.md` contains coding-rule `@import` lines from an earlier run, delete them; their content lands in `CODING_RULES.md` via Phase C.
@@ -175,8 +191,8 @@ A project applied before the split has the flow inlined in `CODING_RULES.md`. Mo
   the pre-split one, then version-merge it there as usual. Any user-authored tail below it stays
   in place.
 - The graphify addon needs no hand-splitting: the two new sources carry the sections between them,
-  so a plain version-merge of `implementation_flow_addons/graphify.md` (v13) into `CODING_RULES.md`
-  plus `implementation_flow_addons/graphify_flow.md` (v1) into `IMPLEMENTATION_FLOW.md` lands the
+  so a plain version-merge of `implementation_flow_addons/graphify.md` (v14) into `CODING_RULES.md`
+  plus `implementation_flow_addons/graphify_flow.md` (v2) into `IMPLEMENTATION_FLOW.md` lands the
   content in the right files.
 - Any `<!-- codex: … -->` / `<!-- deepseek: … -->` marker in the `CODING_RULES.md` header moves to
   the `IMPLEMENTATION_FLOW.md` header; strip it from `CODING_RULES.md`.
@@ -186,7 +202,7 @@ A project applied before the split has the flow inlined in `CODING_RULES.md`. Mo
 ### Tailored blocks and user-authored sections
 
 - When you tailor a copied rule block to the project (trim inapplicable sections,
-  substitute real paths/dirs, apply an addon's paste-form), insert `<!-- tailored -->`
+  substitute real paths/dirs), insert `<!-- tailored -->`
   on its own line directly after the block's title heading. `apply.py` never
   auto-overwrites a tailored block: a newer source version is reported as
   `tailored-stale` in `needs_user_decision`, and you hand-merge the source changes

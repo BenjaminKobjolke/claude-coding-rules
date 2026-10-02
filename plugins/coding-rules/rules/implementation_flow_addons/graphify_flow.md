@@ -1,12 +1,12 @@
 # Version
-1
+2
 
 Increase this version number whenever this rule file changes.
 
 # graphify Flow Steps (Optional Addon)
 
 **Optional.** The flow half of the graphify addon — opt into it together with
-`graphify.md`, which carries the setup, folder layout and query rules and lands in the
+`graphify.md`, which carries the folder layout and query rules and lands in the
 project's `CODING_RULES.md`. These two sections land in the project's
 `IMPLEMENTATION_FLOW.md` because they are steps of the implementation flow, not code
 conventions: an orchestrator that runs the flow itself must be able to ignore them.
