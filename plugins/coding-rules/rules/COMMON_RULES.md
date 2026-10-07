@@ -1,5 +1,5 @@
 # Version
-6
+7
 
 Increase this version number whenever this rule file changes.
 
@@ -389,6 +389,14 @@ lists in consuming code.
   export, form generation, diffing, logging, etc.
 - Combine with compile-time checks where the language supports them (e.g., sealed interfaces,
   exhaustive matching) to ensure new fields cannot be silently ignored
+
+---
+
+## Search Across Partial Words
+
+When implementing user-facing search, split the query on whitespace and match every term as a
+case-insensitive substring of the searchable text, regardless of term order. For example,
+`release bat` should find `release_build.bat`. Preserve the project's existing searchable fields.
 
 ---
 
