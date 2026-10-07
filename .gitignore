@@ -8,3 +8,6 @@ PLAN.md
 HANDOFF.md
 tickets/
 /PLAN_*.md
+graphify-out/
+code_analysis_results/
+.reasonix/
