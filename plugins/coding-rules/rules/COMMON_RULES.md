@@ -1,5 +1,5 @@
 # Version
-7
+8
 
 Increase this version number whenever this rule file changes.
 
@@ -168,6 +168,18 @@ existing equivalent. If found, copy or reference it. If not:
 
 This keeps cross-project tooling consistent and prevents the same script
 from being re-invented in every new project.
+
+---
+
+## New Projects Start From a Template
+
+Before creating a new project (an API, an app, a tool — anything that gets its own folder),
+ask the user whether a template project exists for that kind of project. Never scaffold from
+scratch without asking.
+
+- Run `/coding-rules:new-project`: it suggests the template remembered for that project type
+  in `~/.coding-rules/settings.json`, asks, and remembers a newly chosen template for next time.
+- A remembered template is a suggestion — still ask, the user may want another one or none.
 
 ---
 

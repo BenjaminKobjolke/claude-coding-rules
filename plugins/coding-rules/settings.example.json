@@ -4,5 +4,9 @@
   ],
   "ignore_prefixes": [
     "_old_"
-  ]
+  ],
+  "templates": {
+    "php-api": "D:\\GIT\\Intern\\template-app-api",
+    "flutter-app": "D:\\GIT\\Intern\\template-flutter-app"
+  }
 }

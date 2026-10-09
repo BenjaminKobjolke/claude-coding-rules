@@ -20,6 +20,7 @@ For developing the plugin from a local clone, see [DEBUG.md](DEBUG.md).
 |-------|--------------|
 | `/coding-rules:apply` | Writes the applicable rules (common + language + project type + opted-in addons) into your project's `CODING_RULES.md`, puts a versioned pointer block into `CLAUDE.md`, and installs a plan-acceptance hook that reminds Claude to read the rules. Rule blocks carry a `# Version`; re-running updates only stale blocks and migrates legacy inlined `CLAUDE.md` rules. |
 | `/coding-rules:update-all` | Scans configured folders and refreshes every project whose coding-rules manifest is behind the plugin. |
+| `/coding-rules:new-project` | Asks whether a template project exists before a new project is created, copies it, and remembers the chosen template per project type (`templates` in `~/.coding-rules/settings.json`) to suggest it next time. |
 | `/coding-rules:enforce` | Audits your actual codebase against the rules and reports violations — no auto-fixing. |
 | `/coding-rules:hooks` | `on` / `off` / `status` for the reminder hooks in the current project. Toggles via a flag file — no settings.json edits, no session restart needed. |
 | `/coding-rules:sync-codex` | Installs the skills into OpenAI Codex (`~/.codex/skills/`) so the same rules work there. |
