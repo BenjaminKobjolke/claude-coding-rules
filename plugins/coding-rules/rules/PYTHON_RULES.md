@@ -1,5 +1,5 @@
 # Version
-7
+8
 
 Increase this version number whenever this rule file changes.
 
@@ -17,6 +17,15 @@ See `COMMON_RULES.md` for rules that apply to all languages.
 - `python/DATABASE.md` — SQLAlchemy database.
 
 Run `/coding-rules:apply` to add one when the project gains it.
+
+## Recipes
+
+Ready-made implementations for recurring features. They are **not** copied into the
+project — they live in the `coding-rules` plugin under `rules/python/recipes/`. Read the
+matching recipe in full before implementing the feature, and follow it instead of
+inventing a new approach.
+
+- `python/recipes/SINGLE_INSTANCE.md` — prevent a second instance of the app from starting.
 
 ## CLI Menus
 
