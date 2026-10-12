@@ -19,7 +19,12 @@ Then audit the actual project code against those rules. Do NOT auto-fix — repo
 Run these quick structural checks first:
 
 - **README.md exists** — check root directory
-- **Test runner scripts exist** — check for `tools/run_tests.bat` and `tools/run_integration_tests.bat`
+- **Test runner scripts exist and show progress** — check for `tools/run_tests.bat` and
+  `tools/run_integration_tests.bat`, then inspect both and any runners they delegate to for output
+  delayed until completion, suppressed progress, or long stages without updates. Report static
+  evidence with file and line references. If the 60-second update interval cannot be determined
+  statically, record that limitation rather than claiming it passes; do not run tests just to time
+  them.
 - **Maximum file length** — find source files exceeding 300 lines (exclude: generated files, config files, test files with many similar cases)
 - **No committed secrets** — look for `.env` files with real values, hardcoded API keys, passwords, or tokens in source files
 

@@ -1,5 +1,5 @@
 # Version
-8
+9
 
 Increase this version number whenever this rule file changes.
 
@@ -122,6 +122,14 @@ Every project must provide the following batch files in the `tools/` directory:
 - `tools/run_integration_tests.bat` — runs integration tests
 
 These scripts ensure a consistent way to execute tests across environments.
+
+Both scripts must show progress while tests run: report the current setup stage, suite, or test
+before potentially slow work, and show results as execution proceeds. A start banner followed only
+by a final summary is insufficient. Prefer the runner's verbose output and stream or flush it so
+callers can see it during execution. For a legitimate long wait without ordinary output, report
+the current stage or test and elapsed time at least every 60 seconds. Elapsed-time updates must
+not imply that a test completed or advanced. If output is captured for logs or filtering, keep
+progress visible during execution; replaying it only after completion does not count.
 
 Both must **exit with the test runner's own exit code** — capture it right after the run
 (`set TESTRESULT=%ERRORLEVEL%`) and end with `exit /b %TESTRESULT%`. A bat that prints
