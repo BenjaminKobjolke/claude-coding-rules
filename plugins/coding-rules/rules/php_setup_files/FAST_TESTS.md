@@ -43,10 +43,11 @@ Copy [`tools/tests.bat`](tools/tests.bat), [`tools/run_tests.bat`](tools/run_tes
 | `run_tests.bat` | `--testsuite unit` | never (sets `SKIP_DB_PULL=1`, works offline) |
 | `run_integration_tests.bat` | `--testsuite integration` | yes |
 
-`tests.bat` pulls the mirror, sets `XDEBUG_MODE=off`, runs `vendor\bin\phpunit.bat --colors=never %*`
-redirected into `tools\_last_test_run.log` (gitignore it), captures `ERRORLEVEL` before
-`type`-ing the log, and exits with phpunit's code. The `REM` comments in the bats carry the
-gotchas (`cd /d`, full-path `sqlbackup.bat` call, redirect-never-pipe) — keep them.
+`tests.bat` pulls the mirror, sets `XDEBUG_MODE=off`, and calls
+`vendor\bin\phpunit.bat --colors=never --debug --log-events-text tools\_last_test_run.log %*`
+with no redirect and no pipe. PHPUnit prints each test live and writes the log itself (gitignore
+it); the script exits with phpunit's code. The `REM` comments in the bats carry the
+gotchas (`cd /d`, full-path `sqlbackup.bat` call, no redirect, no pipe) — keep them.
 
 Never run two phpunit processes at once: the pull drops the DB under the other run.
 

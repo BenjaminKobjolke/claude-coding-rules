@@ -32,7 +32,7 @@ echo ============================================
 echo.
 
 if "%1"=="" (
-    %PHP_TARGET_EXE% phpunit11.phar --colors=always
+    %PHP_TARGET_EXE% phpunit11.phar --colors=always --debug
 ) else (
-    %PHP_TARGET_EXE% phpunit11.phar --testsuite %1 --colors=always
+    %PHP_TARGET_EXE% phpunit11.phar --testsuite %1 --colors=always --debug
 )

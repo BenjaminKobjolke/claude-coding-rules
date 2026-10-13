@@ -20,9 +20,9 @@ echo ============================================
 echo.
 
 if "%1"=="" (
-    vendor\bin\phpunit --colors=always
+    vendor\bin\phpunit --colors=always --debug
 ) else (
-    vendor\bin\phpunit --testsuite %1 --colors=always
+    vendor\bin\phpunit --testsuite %1 --colors=always --debug
 )
 
 exit /b %ERRORLEVEL%

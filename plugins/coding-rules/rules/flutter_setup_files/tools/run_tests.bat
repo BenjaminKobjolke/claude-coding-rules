@@ -15,24 +15,18 @@ if %ERRORLEVEL% neq 0 (
 echo Running tests...
 echo.
 
-:: Output goes to a temp file first so the script captures flutter test's OWN
-:: exit code below. Never pipe `fvm flutter test` straight into findstr/grep
-:: for noise filtering - the pipe's exit code becomes the FILTER's exit code,
-:: not flutter test's, silently corrupting pass/fail detection either way
-:: (a real failure can read as pass, or vice versa). findstr also has a
-:: ~8191-char line-length limit and errors on long compact-reporter lines
-:: ("Line X is too long"), which trips this same bug even harder.
-set TESTLOG=%TEMP%\_flutter_tests_output.log
-fvm flutter test > "%TESTLOG%" 2>&1
+:: Run flutter test directly: its output streams live, one line per test
+:: (--reporter expanded), and ERRORLEVEL below is flutter test's OWN exit code.
+:: Never redirect the run into a file and `type` it afterwards - the script is
+:: then silent for the whole run and a hanging test looks like a slow suite.
+:: Never pipe it into findstr/grep either: the pipe's exit code is the
+:: FILTER's, not flutter test's (a real failure can read as pass, or vice
+:: versa), and findstr errors on lines over ~8191 chars.
+:: To hide benign third-party log noise, filter live in PowerShell and hand
+:: flutter test's exit code back - replace the line below with:
+::   powershell -NoProfile -Command "fvm flutter test --reporter expanded | Where-Object { $_ -notmatch 'pattern1|pattern2' }; exit $LASTEXITCODE"
+call fvm flutter test --reporter expanded
 set TESTRESULT=%ERRORLEVEL%
-
-:: To filter benign third-party log noise for display, filter the temp file
-:: with PowerShell Select-String (no line-length limit, runs in its own
-:: process so it cannot affect %TESTRESULT%) instead of findstr, e.g.:
-::   powershell -NoProfile -Command "Get-Content -LiteralPath '%TESTLOG%' | Select-String -NotMatch 'pattern1|pattern2'"
-type "%TESTLOG%"
-
-del "%TESTLOG%" >nul 2>&1
 
 if %TESTRESULT% neq 0 (
     echo.

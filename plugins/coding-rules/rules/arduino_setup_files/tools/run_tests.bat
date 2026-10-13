@@ -34,7 +34,8 @@ if %TESTRESULT% neq 0 (
 echo Running tests...
 echo.
 "%OUT%"
-if %ERRORLEVEL% neq 0 (
+set TESTRESULT=%ERRORLEVEL%
+if %TESTRESULT% neq 0 (
     echo.
     echo ========================================
     echo  Some tests failed!

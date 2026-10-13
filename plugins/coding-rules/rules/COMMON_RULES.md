@@ -1,5 +1,5 @@
 # Version
-10
+11
 
 Increase this version number whenever this rule file changes.
 
@@ -126,16 +126,22 @@ These scripts ensure a consistent way to execute tests across environments.
 Both scripts must show progress while tests run: report the current setup stage, suite, or test
 before potentially slow work, and show results as execution proceeds. A start banner followed only
 by a final summary is insufficient. Prefer the runner's verbose output and stream or flush it so
-callers can see it during execution. For a legitimate long wait without ordinary output, report
-the current stage or test and elapsed time at least every 60 seconds. Elapsed-time updates must
-not imply that a test completed or advanced. If output is captured for logs or filtering, keep
-progress visible during execution; replaying it only after completion does not count.
+callers can see it during execution. Print one line per test: `flutter test --reporter expanded`,
+`pytest -v`, `phpunit --debug` (`--testdox` lists the tests only after the run on PHPUnit 10+).
+For a legitimate long wait without ordinary output, report the current stage or test and elapsed
+time at least every 60 seconds. Elapsed-time updates must not imply that a test completed or
+advanced. If output is captured for logs or filtering, keep progress visible during execution;
+replaying it only after completion does not count.
 
 Both must **exit with the test runner's own exit code** — capture it right after the run
 (`set TESTRESULT=%ERRORLEVEL%`) and end with `exit /b %TESTRESULT%`. A bat that prints
 "Some tests failed!" but exits 0 reports green to CI, to callers and to AI agents. Never pipe the
-test command into a filter — the pipe's exit code is the *filter's*, not the runner's; write to a
-temp file and filter that instead.
+test command into a plain filter — the pipe's exit code is the *filter's*, not the runner's. Never
+redirect the run into a temp file and print or filter that afterwards either: the script is then
+silent for the whole run. Run the command directly so its output streams. If output has to be
+filtered or logged, do it while it streams and return the runner's own code, e.g. `powershell
+-NoProfile -Command "<test command> | Where-Object { $_ -notmatch '<noise>' }; exit $LASTEXITCODE"`,
+or use the runner's own log-file option.
 
 ---
 

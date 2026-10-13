@@ -11,7 +11,7 @@ See [`FAST_TESTS.md`](FAST_TESTS.md). Copy `tools/tests.bat`, `tools/run_tests.b
 | File | Purpose |
 |---|---|
 | `FAST_TESTS.md` | The recipe: local DB mirror, schema cached per process, `XDEBUG_MODE=off`, unit/integration split. |
-| `tools/tests.bat` | Full runner: pulls the mirror, runs phpunit, writes `tools/_last_test_run.log`, exits with phpunit's code. |
+| `tools/tests.bat` | Full runner: pulls the mirror, runs phpunit with live per-test output (`--debug`), lets phpunit write `tools/_last_test_run.log`, exits with phpunit's code. |
 | `tools/run_tests.bat` | `--testsuite unit`, no DB pull (offline). |
 | `tools/run_integration_tests.bat` | `--testsuite integration`, pulls first. |
 | `tools/get_live_db.bat` | Non-interactive live → local copy via `sqlbackup --copy --force`. Template with placeholders. |
