@@ -1,5 +1,5 @@
 # Version
-6
+7
 
 Increase this version number whenever this rule file changes.
 
@@ -397,6 +397,8 @@ class HabitRepository extends Repository
 - Default to excluding soft-deleted records (`deleted_at IS NULL`)
 - Default to excluding archived records where applicable
 - Use `fetchAll()` for collections, `fetchOne()` for single results
+- Collection queries behind a list endpoint take a `ListQuery` and never return an unbounded
+  `fetchAll()` (see "List Endpoints: Paging, Sorting, Filtering")
 - Order by a consistent default (e.g., `order ASC`)
 
 ---
@@ -522,6 +524,88 @@ class SharedHabitPresenter
   Data". Keep detail data on the detail endpoint.
 - Follow the existing endpoint documentation and Hoppscotch rules. Add one `ApiTestCase` test
   asserting that the response contains every block required for the initial display.
+- A list block inside an overview response is the first page of that list, with the same `total`,
+  `limit` and `offset` fields; further pages come from the list endpoint.
+
+---
+
+## List Endpoints: Paging, Sorting, Filtering (BINDING)
+
+The API answers the question; the client displays the answer. A client that has to download a
+whole collection to put it in order, narrow it down or count it is a missing API feature
+(tickets-api knowledge list, 2026-10: the list was unpaged, so sorting was planned into the app).
+
+- **Every list is paged.** Each endpoint that returns stored records takes `limit` and `offset`.
+  `limit` has a default and a maximum, both class constants; a larger value is clamped to the
+  maximum, a non-numeric or negative `limit`/`offset` is `422` via `ValidationException`. There
+  is no "small list" exception — fixed enumerations that are not rows (status values, config
+  options) are the only unpaged arrays.
+- **The response says where the page sits.** Next to the rows it carries `total` (rows matching
+  the filter, before paging), `limit` (as applied) and `offset`:
+  `{"habits": [...], "total": 132, "limit": 50, "offset": 0}`.
+- **Sorting is a parameter.** `sort=<field>` ascending, `sort=-<field>` descending, checked
+  against a per-endpoint whitelist (`422` otherwise). The default order is documented and ends in
+  a unique column (`id`) so pages never overlap or skip a row.
+- **Filter, search, count and group in the query.** Each is a parameter resolved in the
+  repository's SQL (`where`, `orderBy`, `limit`, `offset`, `count()`), never by `fetchAll()` plus
+  PHP array functions — that only moves the client's mistake onto the server.
+- **A client need is an API change.** When a screen needs a new order, filter, search, count or
+  total, add the parameter or field here. "The list is unpaged / small, so the client can do it
+  itself" is never a reason to leave the API unchanged.
+- **Existing unpaged lists** get paging the next time the endpoint, or a screen reading it, is
+  touched. A default limit cuts off what an old client sees, so the plan names every caller and
+  updates it in the same change (a linked todo for a caller in another project).
+- **Test it:** one `ApiTestCase` test per list — default limit applied, oversized limit clamped,
+  second page via `offset` without overlap, `total` ignores paging, descending sort, unknown
+  sort field is `422`.
+
+```php
+final class ListQuery
+{
+    public const DEFAULT_LIMIT = 50;
+    public const MAX_LIMIT = 200;
+
+    private function __construct(
+        public readonly int $limit,
+        public readonly int $offset,
+        public readonly string $sortColumn,
+        public readonly string $sortDirection,
+    ) {}
+
+    public static function fromParams(array $query, array $sortable, string $defaultSort): self
+    {
+        $limit = filter_var($query['limit'] ?? self::DEFAULT_LIMIT, FILTER_VALIDATE_INT);
+        $offset = filter_var($query['offset'] ?? 0, FILTER_VALIDATE_INT);
+        if ($limit === false || $limit < 0 || $offset === false || $offset < 0) {
+            throw new ValidationException(['limit' => 'Limit and offset must be non-negative integers']);
+        }
+        $sort = (string) ($query['sort'] ?? $defaultSort);
+        $direction = str_starts_with($sort, '-') ? 'DESC' : 'ASC';
+        $field = ltrim($sort, '-');
+        if (!isset($sortable[$field])) {
+            throw new ValidationException(['sort' => 'Unknown sort field']);
+        }
+
+        return new self(min($limit, self::MAX_LIMIT), $offset, $sortable[$field], $direction);
+    }
+}
+
+$list = ListQuery::fromParams($query, ['name' => 'name', 'created' => 'created_at'], 'name');
+
+public function findPage(string $userId, ListQuery $list): array
+{
+    return $this->select()->where('user_id', $userId)
+        ->orderBy($list->sortColumn, $list->sortDirection)->orderBy('id', 'ASC')
+        ->limit($list->limit)->offset($list->offset)->fetchAll();
+}
+
+public function countFor(string $userId): int
+{
+    return $this->select()->where('user_id', $userId)->count();
+}
+```
+
+A project may pick other default/maximum values, but they stay constants on `ListQuery`.
 
 ---
 
@@ -539,8 +623,9 @@ the user pays for (tickets-api "high data usage" incident, 2026-09).
   (backwards compatible). Implement it as a separate list serializer (e.g. `toListArray()` /
   a list value object) next to `toArray()`.
 - **Filter and bound on the server.** Every list accepts the filters its callers need,
-  multi-value as comma-separated (`status=error,answered`), and has a `limit`/pagination.
-  Never ship "fetch everything, classify client-side".
+  multi-value as comma-separated (`status=error,answered`). Paging and sorting are defined in
+  "List Endpoints: Paging, Sorting, Filtering". Never ship "fetch everything, classify
+  client-side".
 - **One call per polling tick.** A polling screen reuses the single endpoint for its initial
   data (see "Screen Overview Endpoints") — one call per tick, never N.
 - **Conditional GET on the protected group.** A middleware answers an unchanged `GET` with `304`
@@ -1060,8 +1145,8 @@ GET /api/v1/habits/week
 |-----------|------|----------|-------------|
 | offset | integer | No | Week offset (0 = current, -1 = last week). Default: 0. |
 
-List endpoints document their `fields` (e.g. `fields=slim`), filter and `limit`/pagination
-parameters in this table.
+List endpoints document their `fields`, filters, `limit` (default and maximum), `offset`, and
+`sort` (allowed fields and the default order) in this table.
 
 ### Examples
 

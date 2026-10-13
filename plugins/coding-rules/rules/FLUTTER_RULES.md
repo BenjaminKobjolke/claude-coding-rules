@@ -1,5 +1,5 @@
 # Version
-10
+11
 
 Increase this version number whenever this rule file changes.
 
@@ -1125,7 +1125,13 @@ holds its data in memory only. The server half of this contract is
   when several datasets are needed. Never call a detail endpoint once per list item (N+1). Read
   slim lists (`fields=slim`), filter server-side, fetch full detail only when a detail screen
   opens, and send the last offset for growing logs and append. If the API lacks the required
-  slim/overview/offset endpoint, request it from the API project instead of filtering client-side.
+  slim/overview/offset endpoint or a sort, filter or paging parameter, request it from the API
+  project instead of filtering client-side.
+- **Lists are paged and sorted by the API.** `COMMON_RULES.md` -> "API Clients: the API Sorts,
+  Filters and Pages" is binding here. Build the list with `ListView.builder`, request the next
+  page (`limit`/`offset`) when the last rows scroll into view, and start again at the first page
+  when the sort order or a filter changes. A sort menu sends the `sort` parameter; it never
+  reorders the rows held in memory. Page state lives in the provider, not in the widget.
   See `project_type/REST_API.md` -> "Screen Overview Endpoints" (an app-only project may not
   install `REST_API.md`, so the client rule stays here).
 - **Conditional GET in the client.** A Dio interceptor in the `ApiClient` singleton — registered

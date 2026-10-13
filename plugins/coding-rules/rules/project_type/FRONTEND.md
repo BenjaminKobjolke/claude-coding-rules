@@ -1,5 +1,5 @@
 # Version
-2
+3
 
 Increase this version number whenever this rule file changes.
 
@@ -137,8 +137,8 @@ async function json(path, options = {}) {
 Export named functions for each API operation. Keep function signatures simple:
 
 ```javascript
-export function getEntries(page = 1, perPage = 20, filters = {}) {
-  const params = new URLSearchParams({ page, per_page: perPage });
+export function getEntries(limit = 50, offset = 0, filters = {}) {
+  const params = new URLSearchParams({ limit, offset });
   for (const [key, value] of Object.entries(filters)) {
     if (value != null && value !== '') params.set(key, value);
   }
@@ -159,8 +159,11 @@ export function deleteEntry(id) {
   count them in the browser.
 - Extra calls are allowed when the user opens a detail, requests the next page, searches, changes
   a filter, performs a mutation, or opens a previously hidden tab whose content is loaded lazily.
-- If the API lacks the required overview endpoint, request it from the API project with
-  `/feedback:write` or a linked todo instead of fanning out calls. The server rule is
+- Lists are read page by page and sorted, filtered and searched by the API; see
+  `COMMON_RULES.md` -> "API Clients: the API Sorts, Filters and Pages".
+- If the API lacks the required overview endpoint or a sort, filter or paging parameter, request
+  it from the API project with `/feedback:write` or a linked todo instead of fanning out calls.
+  The server rule is
   `project_type/REST_API.md` -> "Screen Overview Endpoints".
 
 ---
