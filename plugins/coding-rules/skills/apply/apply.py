@@ -1333,6 +1333,10 @@ def self_test():
     assert "One-time setup" not in graph and "Rules to paste" not in graph
     assert "## One-time setup" in read_text(shipped_root / "rules" / "graphify_setup_files" / "SETUP.md")
 
+    pin_terms = ("releaseRuntimeClasspath", "resolutionStrategy.force")
+    for pinned in (shipped_root / "rules" / "FLUTTER_RULES.md", shipped_root / "skills" / "enforce" / "SKILL.md"):
+        assert all(term in read_text(pinned) for term in pin_terms), pinned
+
     print("self-test OK")
 
 

@@ -1,5 +1,5 @@
 # Version
-12
+13
 
 Increase this version number whenever this rule file changes.
 
@@ -638,6 +638,72 @@ notification at the launcher icon renders a featureless white blob in the status
 bar.
 
 Each project records its own paths and wiring in `docs/ICONS.md`.
+
+---
+
+## Pin Android Dependencies Declared as Version Ranges
+
+Some plugins' Android SDKs declare dependencies as **version ranges** (seen: OneSignal Android
+SDK 5.10.0 via `onesignal_flutter` 5.6.10). For a range Gradle must list the available versions
+on Google Maven (`dl.google.com`) and caches that list for only 24 hours; an exact version
+resolves from the local Gradle cache with no network. A build with range-declared dependencies
+therefore needs Google Maven to answer about once a day. When it does not, the release build
+fails in `:app:mergeReleaseNativeLibs` with `Could not resolve ...{require [...]}` and
+`Repository Google is disabled due to earlier error below` — with no code change and every
+artifact already cached.
+
+**The app's Gradle build forces every range-declared Android module to the version it already
+resolves to.**
+
+Find the ranges, from `android/`:
+
+```bash
+gradlew :app:dependencies --configuration releaseRuntimeClasspath --console=plain
+```
+
+- Every `{require [...]}` line is a range (a bare `[1.0, 2.0)` or `1.+` request is the same
+  thing); the version after `->` is the one to pin.
+- The command exits 0 even when resolution fails. `FAILED` lines are the signal, never the
+  exit code.
+- Add `--offline` to read the report from the Gradle cache while Google Maven does not answer.
+
+Pin them in `android/build.gradle.kts`, as its own block after the `allprojects { repositories
+{ ... } }` block:
+
+```kotlin
+// OneSignal 5.10.0 declares these as version ranges. Gradle re-lists a range on Google Maven
+// once its 24-hour cache expires, so the build failed whenever dl.google.com did not answer,
+// although every artifact was already cached. Forcing the versions the ranges resolved to
+// removes that request. force also holds a module down, so after upgrading onesignal_flutter
+// or any plugin that needs one of these: remove this block, run
+// `gradlew :app:dependencies --configuration releaseRuntimeClasspath`, and pin what each
+// `{require [...]}` line resolves to.
+allprojects {
+    configurations.configureEach {
+        resolutionStrategy.force(
+            "com.google.firebase:firebase-messaging:24.0.0",
+            "androidx.work:work-runtime:2.8.1",
+        )
+    }
+}
+```
+
+A Groovy `android/build.gradle` takes the same block with single-quoted strings and no
+trailing comma.
+
+Rules:
+
+- **Pin what the range resolves to in this app, never a version copied from another app.**
+  Other plugins can raise a module above the declaring plugin's range (seen: `androidx.browser`
+  at 1.9.0 through `url_launcher_android`, above OneSignal's `[1.0.0, 1.3.99]`).
+- **Use `resolutionStrategy.force`, not `eachDependency`.** Replacing only the range requests
+  through `eachDependency` still sends a request to `dl.google.com`.
+- **The pins carry a comment** naming the declaring plugin and version, why the pins exist, and
+  how to re-derive them, as in the example.
+- **Re-derive after upgrading** the declaring plugin or any plugin that needs a pinned module:
+  a forced version also holds the module down. Remove the block, run the report, pin again.
+- The pins remove only the daily version lookup. A library that was never downloaded (after a
+  package or Flutter upgrade) still needs Google Maven once.
 
 ---
 

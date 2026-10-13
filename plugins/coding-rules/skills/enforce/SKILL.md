@@ -69,6 +69,14 @@ If language-specific rules are in `CODING_RULES.md`, also check those. Common ch
 - **Localization**: hardcoded user-facing strings instead of using the localization library
 - **Framework patterns**: not following the framework's recommended patterns (e.g., raw fetch instead of API client, missing Pydantic validation at API boundaries)
 - **SCSS specifics**: `@import` instead of `@use`/`@forward` in `.scss` files; selector nesting deeper than 3 levels; hardcoded color/spacing values that should use variables from `_variables.scss`
+- **Flutter Android version-range pins**: only for a project with `android/` and a Gradle
+  wrapper. From `android/`, run `gradlew :app:dependencies --configuration
+  releaseRuntimeClasspath --console=plain --offline` (read-only, served from the Gradle cache).
+  Each module on a `{require [...]}` line that no `resolutionStrategy.force(...)` in
+  `android/build.gradle(.kts)` lists is a violation; so is a force block without a comment
+  saying why it exists and how to re-derive it. The command exits 0 even when resolution
+  fails: if it cannot run or prints `FAILED` lines, record that limitation rather than
+  claiming the rule passes.
 
 ## Reporting
 
