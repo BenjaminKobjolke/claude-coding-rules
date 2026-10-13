@@ -1299,6 +1299,28 @@ def self_test():
 
     shipped_root = Path(__file__).resolve().parents[2]
     shipped_versions = load_json(shipped_root / "rules" / "versions.json", {})
+    runner_flags = {
+        "flutter_setup_files/tools/run_tests.bat": "flutter test --reporter expanded",
+        "python_setup_files/tools/run_tests.bat": "pytest tests/ -v",
+        "python_setup_files/tools/run_integration_tests.bat": "pytest tests/integration -v",
+        "php_setup_files/tools/tests.bat": "--debug",
+        "php_setup_files/tools/tests-php.bat": "--debug",
+        "wordpress_setup_files/tools/run_tests.bat": "--debug",
+    }
+    for rel, flag in runner_flags.items():
+        runner = read_text(shipped_root / "rules" / rel)
+        active_lines = [line.strip().lower() for line in runner.splitlines()
+                        if flag.lower() in line.lower()
+                        and not line.lstrip().lower().startswith(("rem", "::", "echo"))]
+        assert active_lines, f"{rel} is missing {flag}"
+        assert not any(re.search(r"(?<![2])>(?!&)", line) for line in active_lines), \
+            f"{rel} redirects runner output"
+        if rel in ("php_setup_files/tools/tests-php.bat", "wordpress_setup_files/tools/run_tests.bat"):
+            plain_phpunit = [line.strip().lower() for line in runner.splitlines()
+                             if "phpunit" in line.lower() and "--colors" in line.lower()
+                             and "--debug" not in line.lower()
+                             and not line.lstrip().lower().startswith(("rem", "::", "echo"))]
+            assert not plain_phpunit, f"{rel} runs PHPUnit without --debug: {plain_phpunit}"
     for rel in SPLITS["PYTHON_RULES.md"][1]:
         assert rel in shipped_versions and (shipped_root / "rules" / rel).exists(), rel
     lean = read_text(shipped_root / "rules" / "PYTHON_RULES.md")
