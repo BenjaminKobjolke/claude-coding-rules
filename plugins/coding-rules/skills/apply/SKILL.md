@@ -140,6 +140,13 @@ Gotchas seen in practice:
   `# Version` block. If they disagree (seen: `FLUTTER_RULES.md` block 7,
   versions.json 6), the manifest records the stale number — report it.
 
+- graphify on a project whose code sits in the repo root (no `src/`/`lib/`, e.g. a
+  flat PHP tool: `scanner.php` + `modules/`): there is no pure-code dir to scope to.
+  Use `.` as the code dir and add a root `.graphifyignore` excluding every non-code
+  file (`*.md`, `*.json`, `LICENSE`, `tools/`, `.claude/`, `claude-plans/`,
+  `graphify-out/`) — the build then stays AST-only. Set `CODE_DIR=.` in
+  `tools/graphify_update.bat` and pin `.` in `CLAUDE.md`.
+
 If no interpreter works, skip this fast path and use the fallback below
 instead — tell the user: "No Python interpreter found (`python`/`python3`/`py`
 all failed) — applying rules manually, apply.py not used."
