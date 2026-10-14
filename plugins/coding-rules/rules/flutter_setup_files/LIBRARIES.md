@@ -1,3 +1,6 @@
+# Version
+1
+
 # Flutter Libraries
 
 The approved third-party libraries for Flutter projects. **Check this file before implementing
@@ -24,6 +27,7 @@ table below with a reference implementation, so the next project picks it up aut
 | `shared_preferences` | `^2.5.5` | Small key/value settings storage |
 | `flutter_dotenv` | `^5.1.0` | `.env` secrets loading (only when secrets exist) |
 | `flutter_screen_recording` | `^2.0.25` | Native screen recording (MediaProjection / ReplayKit) — used by the `automated_screenshot_connector` demo host |
+| `mobile_scanner` | `^7.4.2` | Camera QR / barcode scanning — Android, iOS, macOS, web only (no Windows/Linux) |
 
 Versions are the last confirmed-good constraints. Verify against pub.dev before pinning a new
 project — do not assume.
@@ -80,6 +84,45 @@ record one mp4 per demo on the device. Pins `flutter_foreground_task ^9.1.0`; an
 `flutter_foreground_task ^11` needs `dependency_overrides: flutter_foreground_task: ^11.0.1`
 (same Dart API, verified in `block-screen-app`). Android 14+ asks for consent before every
 recording. Reference: `automated-application-screenshots-flutter-connector/lib/src/screen_recorder.dart`.
+
+## QR scanning — `mobile_scanner`
+
+Scan QR codes with the device camera. The first use is adding friends by scanning a profile QR
+code.
+
+```yaml
+dependencies:
+  # QR scanning
+  mobile_scanner: ^7.4.2
+```
+
+Supported platforms: Android, iOS, macOS and web. There is no Windows or Linux implementation.
+On desktop builds, gate the scan entry point by platform (hide the button) and keep a manual
+code-entry fallback, as the reference does.
+
+Camera permissions and setup:
+
+- **Android:** the plugin's manifest declares `android.permission.CAMERA`, which is merged
+  automatically. The runtime permission prompt appears when the scanner starts.
+- **iOS:** add `NSCameraUsageDescription` to `ios/Runner/Info.plist`; without it, the app crashes
+  when the scanner starts.
+- **macOS:** add `NSCameraUsageDescription` to `Info.plist` and
+  `com.apple.security.device.camera` to both entitlement files.
+- **Web:** camera access requires a secure context (HTTPS or localhost).
+- Handle `permissionDenied` and other `MobileScannerException`s with a localized message instead
+  of showing a blank preview.
+
+House conventions:
+
+- Use a full-screen scanner screen that returns the scanned value to its caller with
+  `Navigator.pop`.
+- Validate the value before acting and show a hint for invalid codes.
+- Reuse the existing submit path instead of creating a parallel one.
+
+Reference implementations from GoRabbits App:
+
+- `turbo-habits-app/lib/screens/friends/friend_qr_scanner_screen.dart` — scanner screen.
+- `turbo-habits-app/lib/widgets/friends/add_friend_dialog.dart` — platform-gated entry point.
 
 ## Everything else
 
