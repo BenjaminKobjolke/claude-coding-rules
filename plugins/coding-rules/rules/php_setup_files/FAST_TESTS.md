@@ -26,11 +26,34 @@ A runner refreshes that mirror from live before each full run via the `sqlbackup
 
 - Two JSON configs next to the project's live backups, **outside the repo**:
   `<Backups>\<project>\sql\<project>.json` (live credentials) and
-  `<project>_local.json` (`{"host":"localhost","port":3306,"user":"root","password":"","database":"<local_db>"}`).
+  `<project>_local.json` (`{"host":"localhost","port":<port>,"user":"root","password":"","database":"<local_db>"}`),
+  `<port>` = the local server that matches live (see below).
 - `tools/get_live_db.bat` — copy [`tools/get_live_db.bat`](tools/get_live_db.bat) and replace the
   `__PLACEHOLDERS__` in its header. It runs `sqlbackup --copy --source <live> --target <local> --force`,
   which **drops and recreates** the local DB. It is non-interactive on purpose (no confirm
   prompt, no `pause`): the test runner calls it unattended.
+
+### The mirror runs the same engine as live
+
+Run `SELECT VERSION()` on live before setting up the mirror and use the same engine locally —
+MariaDB for a MariaDB live, MySQL for a MySQL live, ideally the same major version. A mismatched
+mirror either fails the copy or tests a schema that is not live's:
+
+- MariaDB stores long `UNIQUE` keys on MyISAM as a hidden hash (`USING HASH` in
+  `SHOW CREATE TABLE`). MySQL cannot restore them: `1071 Specified key was too long; max key
+  length is 1000 bytes`.
+- MariaDB-only syntax in a migration (`ADD UNIQUE KEY IF NOT EXISTS`, …) fails on a MySQL mirror,
+  so the migration can never be rehearsed locally.
+
+WAMP ships both servers: MySQL on 3306 and MariaDB on **3307** (`mariaPortUsed` in
+`wampmanager.conf`). Keep MySQL running for projects whose live is MySQL; point a MariaDB
+project's `_local.json` and its test DB config at 3307. WAMP's MariaDB `my.ini` ships
+`innodb_default_row_format=compact`, which caps index columns at 767 bytes
+(`1709 Index column size too large`) — set it to `dynamic`. A WAMP reinstall resets it.
+
+The copy and the tests must hit the **same** server: the test DB config (`config/database.php`,
+or the project's test-settings class) needs its own port setting that matches `_local.json`.
+Without it the copy refreshes one server while the tests read a stale DB on the other.
 
 ## 2. Runners
 

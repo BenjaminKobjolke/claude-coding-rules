@@ -1,5 +1,5 @@
 # Version
-2
+3
 
 Increase this version number whenever this rule file changes.
 
@@ -675,7 +675,7 @@ declare(strict_types=1);
 use Cycle\Database\Config;
 
 $dbHost = 'localhost';
-$dbPort = 3306;
+$dbPort = 3306; // local server must match live's engine (WAMP MariaDB: 3307) — see php_setup_files/FAST_TESTS.md
 $dbName = 'your_database';
 $dbUser = 'root';
 $dbPass = '';
