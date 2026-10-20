@@ -1,5 +1,5 @@
 # Version
-1
+2
 
 Increase this version number whenever this rule file changes.
 
@@ -286,3 +286,36 @@ service falls back to the app icon and the status bar shows a white blob again.
 Every project that customises its icons gets a `docs/ICONS.md` recording its own
 source-art paths, drawable names, meta-data key, and wiring locations. Reference
 implementation: `block-screen-app/docs/ICONS.md`.
+
+## Designer handoff (export / import)
+
+Set up the designer handoff when the project has icon artwork that a designer
+redraws. The template exports editable PNG and SVG sources with notes, then
+validates returned artwork before importing it.
+
+Copy these five runtime and test files from this rule's `icon_transfer/` folder
+into the project's `tools/` folder:
+
+- `icon_transfer.py`
+- `icon_placeholders.py`
+- `icons_export.bat`
+- `icons_import.bat`
+- `test_icon_transfer_engine.py`
+
+Create `tools/icon_transfer.json` from `icon_transfer.example.json`. Set the
+project title and list every editable icon source in `icons`, with its export
+path, repo path, and a useful note. Include a `fallback_png` for SVGs when a
+source PNG can define the placeholder dimensions. Add an app-specific coverage
+test that asserts the configured `ICON_FILES` entries match the PNG and SVG
+sources in the repository, so new artwork cannot be left out of handoffs.
+
+The copied template files are never edited in the project. To update them,
+overwrite them from the plugin template. Put project-specific export or import
+behaviour in an extension module that implements `export_extra` and
+`prepare_extra_import`.
+
+Record the project's icon handoff setup in `docs/ICONS.md`, including any
+extension behaviour and its app-specific coverage test. Run
+`tools\icons_export.bat <folder>` to prepare artwork for a designer, then
+`tools\icons_import.bat <folder>` to validate and import returned artwork.
+Review the import with `git diff` and undo any undesired changes with git.

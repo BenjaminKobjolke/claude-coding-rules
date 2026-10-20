@@ -1,0 +1,23 @@
+{
+  "title": "Example Flutter App",
+  "launcher_command": "tools/create_icons.bat",
+  "icons": [
+    {
+      "export": "app_icon/launcher.png",
+      "repo": "assets/icon/launcher.png",
+      "note": "Launcher artwork; keep transparent margins.",
+      "regenerates_launcher": true
+    },
+    {
+      "export": "notification/status.png",
+      "repo": "android/app/src/main/res/drawable-mdpi/ic_notification.png",
+      "note": "White on transparent for the status bar."
+    },
+    {
+      "export": "in_app/logo.svg",
+      "repo": "assets/images/logo.svg",
+      "note": "App logo shown in the interface.",
+      "fallback_png": "assets/images/logo.png"
+    }
+  ]
+}
