@@ -11,3 +11,5 @@ tickets/
 graphify-out/
 code_analysis_results/
 .reasonix/
+coding-rules.json
+plugins/coding-rules/graphify-out/
