@@ -1299,6 +1299,21 @@ def self_test():
 
     shipped_root = Path(__file__).resolve().parents[2]
     shipped_versions = load_json(shipped_root / "rules" / "versions.json", {})
+    assert "CPP_RULES.md" in shipped_versions
+    assert "CPP_RULES.md" in read_text(shipped_root / "skills" / "apply" / "SKILL.md")
+
+    delta_project = Path(tempfile.mkdtemp())
+    first_delta = run(delta_project, shipped_root, ["COMMON_RULES.md"], "neither")
+    assert any(item["rule"] == "COMMON_RULES.md" and item["status"] == "updated"
+               for item in first_delta["rules"]), first_delta
+    second_delta = run(delta_project, shipped_root, ["COMMON_RULES.md", "CPP_RULES.md"], "neither")
+    delta_statuses = {item["rule"]: item["status"] for item in second_delta["rules"]}
+    assert delta_statuses["CPP_RULES.md"] == "updated", second_delta
+    assert delta_statuses["COMMON_RULES.md"] == "unchanged", second_delta
+    delta_manifest = load_json(delta_project / "coding-rules.json", {})
+    assert "CPP_RULES.md" in delta_manifest["rules"], delta_manifest
+    assert "# C++ Rules" in read_text(delta_project / "CODING_RULES.md")
+
     runner_flags = {
         "flutter_setup_files/tools/run_tests.bat": "flutter test --reporter expanded",
         "kotlin_setup_files/tools/run_tests.bat": "testDebugUnitTest",

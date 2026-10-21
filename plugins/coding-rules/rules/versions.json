@@ -1,10 +1,11 @@
 {
   "pointer": 2,
-  "COMMON_RULES.md": 12,
+  "COMMON_RULES.md": 13,
   "IMPLEMENTATION_FLOW.md": 25,
   "PHP_RULES.md": 3,
   "PYTHON_RULES.md": 8,
   "CSHARP_RULES.md": 1,
+  "CPP_RULES.md": 1,
   "JAVASCRIPT_RULES.md": 1,
   "TYPESCRIPT_RULES.md": 1,
   "FLUTTER_RULES.md": 13,

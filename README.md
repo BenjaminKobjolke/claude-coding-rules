@@ -2,7 +2,7 @@
 
 Versioned coding rules for Claude Code, packaged as an installable plugin.
 
-Languages: PHP, Python, C#, Flutter/Dart, Svelte, SCSS, Arduino, AutoHotkey, Unity C#, WordPress.
+Languages: PHP, Python, C#, C++, Flutter/Dart, Svelte, SCSS, Arduino, AutoHotkey, Unity C#, WordPress.
 Project types: REST API, Frontend SPA. Plus common rules that apply to every language.
 
 ## Install
