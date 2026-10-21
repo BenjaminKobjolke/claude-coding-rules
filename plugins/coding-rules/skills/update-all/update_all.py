@@ -23,7 +23,7 @@ class SettingsError(ValueError):
     pass
 
 
-def load_settings(path):
+def load_settings(path, warn=print):
     if not path.exists():
         example = path.with_name("settings.example.json")
         example.parent.mkdir(parents=True, exist_ok=True)
@@ -46,7 +46,7 @@ def load_settings(path):
         if folder.is_dir():
             existing.append(folder)
         else:
-            print(f"warning: folder does not exist, skipping: {folder}")
+            warn(f"warning: folder does not exist, skipping: {folder}")
     if not existing:
         raise SettingsError("None of the configured folders exist.")
     return existing, tuple(prefixes)
@@ -103,10 +103,9 @@ def classify_manifest(manifest, versions):
     return outdated, decisions
 
 
-def update_project(project, plugin_root, manifest):
+def update_project(project, plugin_root, manifest, versions):
     """Apply the manifest's existing selection, isolating failures per repo."""
     try:
-        versions = apply.load_json(plugin_root / "rules" / "versions.json", {})
         requested = list(mapped_rules(manifest))
         if GRAPHIFY in requested and GRAPHIFY_FLOW not in requested:
             requested.append(GRAPHIFY_FLOW)
@@ -120,71 +119,171 @@ def _details(items):
     return ", ".join(f"{rel} {old}→{new}" for rel, old, new in items)
 
 
-def scan_projects(folders, ignore_prefixes, plugin_root, dry_run=False):
-    versions = apply.load_json(plugin_root / "rules" / "versions.json", {})
-    repos = sorted({repo for folder in folders for repo in find_repos(folder, ignore_prefixes)})
-    counts = {"using": 0, "updated": 0, "current": 0, "decision": 0, "errors": 0}
-
-    for project in repos:
-        manifest_path = project / "coding-rules.json"
-        if not manifest_path.exists():
-            if (project / apply.RULES_FILE).exists():
-                print(f"no manifest: {project} — run /coding-rules:apply there once")
-            continue
-        counts["using"] += 1
-        try:
-            manifest = apply.load_json(manifest_path, {})
-            outdated, decisions = classify_manifest(manifest, versions)
-        except Exception as exc:
-            print(f"error: {project}: {exc}")
-            counts["errors"] += 1
-            continue
-
-        if decisions:
-            print(f"needs decision: {project}: {'; '.join(decisions)}")
-            counts["decision"] += 1
-        elif not outdated:
-            counts["current"] += 1
-        elif dry_run:
-            print(f"would update: {project}: {_details(outdated)}")
-            counts["updated"] += 1
+def _report_items(items):
+    """Flatten apply.run's structured findings for the machine-readable report."""
+    flattened = []
+    for item in items:
+        if isinstance(item, dict):
+            phase = item.get("phase", "unknown")
+            detail = item.get("detail")
+            if detail is None:
+                detail = f"{item.get('file', '')}: {item.get('error', '')}".strip(": ")
+            flattened.append(f"[{phase}] {detail}")
         else:
-            report = update_project(project, plugin_root, manifest)
-            if report["errors"]:
-                print(f"error: {project}: {report['errors']}")
-                counts["errors"] += 1
-            elif report["needs_user_decision"]:
-                print(f"needs decision: {project}: {report['needs_user_decision']}")
-                counts["decision"] += 1
-            else:
-                kept = report.get("split_kept", [])
-                suffix = f" (kept: {', '.join(kept)})" if kept else ""
-                print(f"updated: {project}: {_details(outdated)}{suffix}")
-                counts["updated"] += 1
-
-    print(
-        f"{len(repos)} scanned, {counts['using']} using coding rules, "
-        f"{counts['updated']} updated, {counts['current']} current, "
-        f"{counts['decision']} need a decision, {counts['errors']} errors"
-    )
-    return 1 if counts["errors"] else 0
+            flattened.append(str(item))
+    return flattened
 
 
-def main(argv=None):
+def check_project(project, plugin_root, versions, dry_run=False, explicit=False, report_path=None):
+    """Inspect or update one project and return its normalized report entry."""
+    entry = {
+        "path": str(project) if report_path is None else report_path, "status": "", "outdated": [],
+        "decisions": [], "errors": [], "kept": [], "_using": False,
+    }
+    if explicit and not project.is_dir():
+        entry["status"] = "error"
+        entry["errors"].append("folder does not exist")
+        entry["_message"] = f"error: {project}: folder does not exist"
+        return entry
+
+    manifest_path = project / "coding-rules.json"
+    if not manifest_path.exists():
+        rules_file = (project / apply.RULES_FILE).exists()
+        if not explicit and not rules_file:
+            return None
+        entry["status"] = "no_manifest"
+        entry["rules_file"] = rules_file
+        entry["_message"] = (
+            f"no manifest: {project} — run /coding-rules:apply there once" if rules_file else None
+        )
+        return entry
+
+    entry["_using"] = True
+    try:
+        manifest = apply.load_json(manifest_path, {})
+        outdated, decisions = classify_manifest(manifest, versions)
+    except Exception as exc:
+        entry["status"] = "error"
+        entry["errors"].append(str(exc))
+        entry["_message"] = f"error: {project}: {exc}"
+        return entry
+
+    entry["outdated"] = [
+        {"rule": rel, "applied": old, "current": new} for rel, old, new in outdated
+    ]
+    if decisions:
+        entry["status"] = "needs_decision"
+        entry["decisions"] = decisions
+        entry["_message"] = f"needs decision: {project}: {'; '.join(decisions)}"
+    elif not outdated:
+        entry["status"] = "current"
+        entry["_message"] = None
+    elif dry_run:
+        entry["status"] = "updated"
+        entry["_message"] = f"would update: {project}: {_details(outdated)}"
+    else:
+        report = update_project(project, plugin_root, manifest, versions)
+        raw_errors = report["errors"]
+        raw_decisions = report["needs_user_decision"]
+        entry["_raw_errors"] = raw_errors
+        entry["_raw_decisions"] = raw_decisions
+        if raw_errors:
+            entry["status"] = "error"
+            entry["errors"] = _report_items(raw_errors)
+            entry["_message"] = f"error: {project}: {raw_errors}"
+        elif raw_decisions:
+            entry["status"] = "needs_decision"
+            entry["decisions"] = _report_items(raw_decisions)
+            entry["_message"] = f"needs decision: {project}: {raw_decisions}"
+        else:
+            entry["status"] = "updated"
+            entry["kept"] = report.get("split_kept", [])
+            suffix = f" (kept: {', '.join(entry['kept'])})" if entry["kept"] else ""
+            entry["_message"] = f"updated: {project}: {_details(outdated)}{suffix}"
+    return entry
+
+
+def run_projects(projects, plugin_root, dry_run=False, as_json=False, label_count=None,
+                 explicit=False, report_paths=None):
+    """Run the shared updater and report either human or JSON output."""
+    versions = apply.load_json(plugin_root / "rules" / "versions.json", {})
+    entries = []
+    for index, project in enumerate(projects):
+        report_path = report_paths[index] if report_paths is not None else None
+        entry = check_project(project, plugin_root, versions, dry_run, explicit, report_path)
+        if entry is not None:
+            entries.append(entry)
+
+    totals = {
+        "projects": len(projects) if label_count is None else label_count,
+        "using": 0, "updated": 0, "current": 0, "needs_decision": 0,
+        "no_manifest": 0, "errors": 0,
+    }
+    for entry in entries:
+        if entry["_using"]:
+            totals["using"] += 1
+        status_key = "errors" if entry["status"] == "error" else entry["status"]
+        totals[status_key] += 1
+
+    if as_json:
+        clean_entries = [
+            {key: value for key, value in entry.items() if not key.startswith("_")}
+            for entry in entries
+        ]
+        print(json.dumps({"dry_run": dry_run, "projects": clean_entries, "totals": totals}, indent=2))
+    else:
+        for entry in entries:
+            message = entry.get("_message")
+            if message:
+                print(message)
+        print(
+            f"{totals['projects']} scanned, {totals['using']} using coding rules, "
+            f"{totals['updated']} updated, {totals['current']} current, "
+            f"{totals['needs_decision']} need a decision, {totals['errors']} errors"
+        )
+    return 1 if totals["errors"] else 0
+
+
+def scan_projects(folders, ignore_prefixes, plugin_root, dry_run=False, as_json=False):
+    repos = sorted({repo for folder in folders for repo in find_repos(folder, ignore_prefixes)})
+    return run_projects(repos, plugin_root, dry_run, as_json, len(repos))
+
+
+def main(argv=None, plugin_root=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--settings", type=Path, default=Path.home() / ".coding-rules" / "settings.json")
+    parser.add_argument("--project", action="append", help="Project folder to update (repeatable)")
+    parser.add_argument("--json", action="store_true", help="Print a machine-readable JSON report")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--self-test", action="store_true")
     args = parser.parse_args(argv)
     if args.self_test:
         self_test()
         return 0
+    if args.project is not None:
+        project_paths = []
+        seen = set()
+        for raw_path in args.project:
+            if raw_path not in seen:
+                seen.add(raw_path)
+                project_paths.append(raw_path)
+        projects = [Path(raw_path) for raw_path in project_paths]
+        return run_projects(
+            projects, plugin_root or Path(__file__).resolve().parents[2], args.dry_run,
+            args.json, len(projects), explicit=True, report_paths=project_paths,
+        )
     try:
-        folders, prefixes = load_settings(args.settings)
+        warn = print if not args.json else lambda message: print(message, file=sys.stderr)
+        folders, prefixes = load_settings(args.settings, warn=warn)
     except SettingsError as exc:
-        print(f"error: {exc}")
+        if args.json:
+            print(json.dumps({"error": str(exc)}))
+        else:
+            print(f"error: {exc}")
         return 1
-    return scan_projects(folders, prefixes, Path(__file__).resolve().parents[2], args.dry_run)
+    return scan_projects(
+        folders, prefixes, plugin_root or Path(__file__).resolve().parents[2], args.dry_run, args.json,
+    )
 
 
 def self_test():
@@ -231,6 +330,68 @@ def self_test():
         assert scan_projects([root], ("_old_",), plugin) == 0
     assert apply.load_json(stale / "coding-rules.json", {})["rules"]["FOO.md"] == 2
     assert apply.read_text(current / apply.RULES_FILE) == current_before
+
+    # JSON scan mode keeps the same repo selection, including its scanned count.
+    output = io.StringIO()
+    with contextlib.redirect_stdout(output):
+        assert scan_projects([root], ("_old_",), plugin, as_json=True) == 0
+    scan_json = json.loads(output.getvalue())
+    assert scan_json["totals"]["projects"] == 3, scan_json
+    assert all("_old_" not in item["path"] for item in scan_json["projects"]), scan_json
+
+    def stale_json_repo(name):
+        project = repo(name)
+        apply.run(project, plugin, ["FOO.md"], "neither")
+        manifest = apply.load_json(project / "coding-rules.json", {})
+        manifest["rules"]["FOO.md"] = 1
+        apply.save_json(project / "coding-rules.json", manifest)
+        return project
+
+    stale_copy = stale_json_repo("stale-copy")
+    stale_copy_before = apply.read_text(stale_copy / apply.RULES_FILE)
+    missing_project = root / "missing-project"
+    current_spelling = os.path.join(str(current.parent), ".", current.name)
+    explicit_paths = [str(stale_copy), str(current), str(no_manifest), str(missing_project),
+                      str(current), current_spelling]
+    output = io.StringIO()
+    with contextlib.redirect_stdout(output):
+        assert main([
+            *sum((["--project", path] for path in explicit_paths), []),
+            "--json", "--dry-run",
+        ], plugin_root=plugin) == 1
+    explicit_json = json.loads(output.getvalue())
+    assert explicit_json["dry_run"] is True, explicit_json
+    assert [item["path"] for item in explicit_json["projects"]] == [
+        str(stale_copy), str(current), str(no_manifest), str(missing_project), current_spelling,
+    ], explicit_json
+    assert [item["status"] for item in explicit_json["projects"]] == [
+        "updated", "current", "no_manifest", "error", "current",
+    ], explicit_json
+    assert explicit_json["projects"][2]["rules_file"] is True, explicit_json
+    assert explicit_json["totals"] == {
+        "projects": 5, "using": 3, "updated": 1, "current": 2,
+        "needs_decision": 0, "no_manifest": 1, "errors": 1,
+    }, explicit_json
+    assert apply.read_text(stale_copy / apply.RULES_FILE) == stale_copy_before
+
+    stale_update = stale_json_repo("stale-update")
+    output = io.StringIO()
+    with contextlib.redirect_stdout(output):
+        assert main(["--project", str(stale_update), "--json"], plugin_root=plugin) == 0
+    update_json = json.loads(output.getvalue())
+    assert update_json["projects"][0]["status"] == "updated", update_json
+    assert update_json["projects"][0]["outdated"] == [
+        {"rule": "FOO.md", "applied": 1, "current": 2},
+    ], update_json
+    assert apply.load_json(stale_update / "coding-rules.json", {})["rules"]["FOO.md"] == 2
+
+    # Exercise argparse wiring against the real plugin root without a manifest.
+    cli_project = temp / "cli-project"
+    cli_project.mkdir()
+    output = io.StringIO()
+    with contextlib.redirect_stdout(output):
+        assert main(["--project", str(cli_project), "--json", "--dry-run"]) == 0
+    assert json.loads(output.getvalue())["projects"][0]["status"] == "no_manifest"
 
     classification_versions = {
         "pointer": 1,

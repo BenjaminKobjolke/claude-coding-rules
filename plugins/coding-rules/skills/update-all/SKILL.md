@@ -1,5 +1,5 @@
 ---
-description: Update every project that uses the coding rules to the current rule versions, scanning the folders from settings.json.
+description: Update projects that use the coding rules to the current rule versions, scanning settings.json folders or an explicit project list.
 ---
 
 # Update All Coding Rules
@@ -9,6 +9,14 @@ Run:
 ```text
 python ${CLAUDE_PLUGIN_ROOT}/skills/update-all/update_all.py
 ```
+
+Pass `--project <path>` to update a specific project folder instead of scanning the configured
+folders. Repeat the option to process several projects; explicit project paths do not need a
+`settings.json` file. Use `--json` to print one JSON document with `dry_run`, a `projects` array,
+and `totals`. Project entries include the path, status (`updated`, `current`, `needs_decision`,
+`no_manifest`, or `error`), outdated rule versions, decisions, errors, and kept split files.
+The command exits with code 1 if any project errors. In JSON mode, settings warnings go to stderr.
+Both options can be combined with `--dry-run` to inspect results without changing projects.
 
 When the user asks only to inspect available updates, pass `--dry-run`.
 

@@ -31,6 +31,8 @@ Copy `plugins/coding-rules/settings.example.json` to `~/.coding-rules/settings.j
 folders to scan, then run `/coding-rules:update-all`. Use `--dry-run` with the underlying
 `update_all.py` script to list updates without changing projects. Repositories already current
 are left untouched; conflicts are reported for a manual `/coding-rules:apply` run.
+For scripted use, such as the nightly watcher, pass repeatable `--project <path>` options and
+`--json` to select projects and read a machine-readable report.
 
 ## Using with OpenAI Codex
 
