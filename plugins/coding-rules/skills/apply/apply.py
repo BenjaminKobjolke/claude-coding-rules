@@ -1301,6 +1301,8 @@ def self_test():
     shipped_versions = load_json(shipped_root / "rules" / "versions.json", {})
     runner_flags = {
         "flutter_setup_files/tools/run_tests.bat": "flutter test --reporter expanded",
+        "kotlin_setup_files/tools/run_tests.bat": "testDebugUnitTest",
+        "kotlin_setup_files/tools/run_analysis.bat": "lintKotlin",
         "python_setup_files/tools/run_tests.bat": "pytest tests/ -v",
         "python_setup_files/tools/run_integration_tests.bat": "pytest tests/integration -v",
         "php_setup_files/tools/tests.bat": "--debug",
