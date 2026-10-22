@@ -1,5 +1,5 @@
 # Version
-3
+4
 
 Increase this version number whenever this rule file changes.
 
@@ -27,3 +27,8 @@ Frontend single-page applications, framework-agnostic. Covers Vite build tooling
 (`base: './'`, dev server API proxy), Tailwind CSS with PostCSS, and OS-aware dark mode.
 
 Pair with the framework/language rules, e.g. `SVELTE_RULES.md` and `SCSS_RULES.md`.
+
+## Flutter app vs. library
+
+Flutter libraries/plugins (pub packages whose only app is `example/`) use
+`FLUTTER_RULES.md` alone. Flutter apps add `flutter/APP.md`.

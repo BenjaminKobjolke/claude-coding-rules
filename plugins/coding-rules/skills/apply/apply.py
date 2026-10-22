@@ -61,6 +61,8 @@ SPLITS = {"PYTHON_RULES.md": (7, {
     "python/DATABASE.md": ("sqlalchemy",),
 }), "CSHARP_RULES.md": (2, {
     "csharp/WINFORMS.md": ("system.windows.forms", "usewindowsforms"),
+}), "FLUTTER_RULES.md": (14, {
+    "flutter/APP.md": ("lib/main.dart", "android/app/"),
 })}
 
 POINTER_TITLE = "# Coding Rules (Pointer)"
@@ -1253,6 +1255,51 @@ def self_test():
         assert again["split_kept"] == [] and all(x["status"] == "unchanged" for x in again["rules"]), again
         assert read_text(split_project / RULES_FILE) == result
 
+    # Flutter v13 app-only rules move into a supplement on the v14 apply.
+    # A demo application under example/ must not classify the package as an app.
+    for app in (True, False):
+        split_plugin = Path(tempfile.mkdtemp())
+        split_rules = split_plugin / "rules"
+        (split_rules / "flutter").mkdir(parents=True)
+        old_flutter = (
+            "# Version\n13\n\n# Flutter Rules (FVM + Mobile)\n\n"
+            "general Flutter rules\n\n## Localization\n\nold i18n rules\n")
+        new_flutter = (
+            "# Version\n14\n\n# Flutter Rules (FVM + Mobile)\n\n"
+            "general Flutter rules\n")
+        (split_rules / "FLUTTER_RULES.md").write_text(old_flutter, encoding="utf-8")
+        save_json(split_rules / "versions.json", {"pointer": 1, "FLUTTER_RULES.md": 13})
+
+        split_project = Path(tempfile.mkdtemp())
+        if app:
+            (split_project / "lib").mkdir()
+            (split_project / "lib" / "main.dart").write_text("void main() {}\n", encoding="utf-8")
+        else:
+            (split_project / "pubspec.yaml").write_text("name: sample_plugin\n", encoding="utf-8")
+            (split_project / "example" / "lib").mkdir(parents=True)
+            (split_project / "example" / "lib" / "main.dart").write_text(
+                "void main() {}\n", encoding="utf-8")
+        run(split_project, split_plugin, ["FLUTTER_RULES.md"], "neither")
+
+        (split_rules / "FLUTTER_RULES.md").write_text(new_flutter, encoding="utf-8")
+        (split_rules / "flutter" / "APP.md").write_text(
+            "# Version\n1\n\n# Flutter App Rules\n\nnew i18n rules\n", encoding="utf-8")
+        save_json(split_rules / "versions.json", {
+            "pointer": 1, "FLUTTER_RULES.md": 14, "flutter/APP.md": 1})
+
+        split_report = run(split_project, split_plugin, ["FLUTTER_RULES.md"], "keep")
+        assert split_report["split_kept"] == (["flutter/APP.md"] if app else []), split_report
+        result = read_text(split_project / RULES_FILE)
+        assert result.count("new i18n rules") == (1 if app else 0), result
+        assert "old i18n rules" not in result and "general Flutter rules" in result, result
+        expected_rules = ({"FLUTTER_RULES.md": 14, "flutter/APP.md": 1} if app
+                          else {"FLUTTER_RULES.md": 14})
+        assert load_json(split_project / "coding-rules.json", {})["rules"] == expected_rules
+        again = run(split_project, split_plugin, ["FLUTTER_RULES.md"], "keep")
+        assert again["split_kept"] == [] and all(
+            item["status"] == "unchanged" for item in again["rules"]), again
+        assert read_text(split_project / RULES_FILE) == result
+
     # C# v1 rules move the WinForms sections to an optional block on the v2 apply.
     for desktop in (True, False):
         csharp_plugin = Path(tempfile.mkdtemp())
@@ -1404,6 +1451,16 @@ def self_test():
             assert not plain_phpunit, f"{rel} runs PHPUnit without --debug: {plain_phpunit}"
     for rel in SPLITS["PYTHON_RULES.md"][1]:
         assert rel in shipped_versions and (shipped_root / "rules" / rel).exists(), rel
+    for rel in SPLITS["FLUTTER_RULES.md"][1]:
+        assert rel in shipped_versions and (shipped_root / "rules" / rel).exists(), rel
+    flutter_base = read_text(shipped_root / "rules" / "FLUTTER_RULES.md")
+    assert all(term not in flutter_base for term in (
+        "## Localization", "## 7) State Management (Cubit)",
+        "## 8) HTTP Communication (Dio)", "## App Icons",
+        "## 6) Required Batch Files", "install.bat"))
+    assert all(term in flutter_base for term in (
+        "## Mixins", "## Pin Android Dependencies", "## 5) Tests are mandatory",
+        "--reporter expanded"))
     lean = read_text(shipped_root / "rules" / "PYTHON_RULES.md")
     assert all(heading not in lean for heading in ("## Template Engine", "## GUI Framework", "## Localization",
         "## Jinja2 Integration", "## Release Workflow", "## Windows Installer (NSIS)",

@@ -1,5 +1,5 @@
 # Version
-1
+2
 
 # Flutter Libraries
 
@@ -69,13 +69,13 @@ House conventions for charts:
 https://github.com/BenjaminKobjolke/flutter-i18n-translations
 
 The only approved localization approach. Do **not** use `intl`, `flutter_localizations`, or
-`.arb`/`gen_l10n` — see [`../FLUTTER_RULES.md`](../FLUTTER_RULES.md) → "Localization" for the
+`.arb`/`gen_l10n` — see [`../flutter/APP.md`](../flutter/APP.md) → "Localization" for the
 full setup, the `TK` constants convention, and the key-audit tooling in `tools/`.
 
 ## State management — `flutter_bloc`
 
 Cubit only (no events, no full BLoC). States are immutable, `Equatable`, and use `copyWith`.
-See [`../FLUTTER_RULES.md`](../FLUTTER_RULES.md) → "State Management (Cubit)".
+See [`../flutter/APP.md`](../flutter/APP.md) → "State Management (Cubit)".
 
 ## Screen recording — `flutter_screen_recording`
 
@@ -127,7 +127,7 @@ Reference implementations from GoRabbits App:
 ## Everything else
 
 `dio`, `objectbox`, `get_it`, `freezed`, `logger` and `logarte` each have a dedicated section
-in [`../FLUTTER_RULES.md`](../FLUTTER_RULES.md) covering setup and the required patterns
+in [`../flutter/APP.md`](../flutter/APP.md) covering setup and the required patterns
 (`ApiClient` singleton, `ObjectBoxService`, the central `AppLogger`, and so on).
 
-See [`../FLUTTER_RULES.md`](../FLUTTER_RULES.md) for the rules these support.
+See [`../flutter/APP.md`](../flutter/APP.md) for the rules these support.
