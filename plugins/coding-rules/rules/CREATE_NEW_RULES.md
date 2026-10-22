@@ -1,5 +1,5 @@
 # Version
-2
+3
 
 Increase this version number whenever this rule file changes.
 
@@ -25,3 +25,5 @@ After creating or bumping a rule file, add or update its entry in
 `project_type/REST_API.md`) to match the new `# Version` number, then run
 `python ../skills/apply/apply.py --check-versions` to confirm the header and
 the index agree. See the repo root `CLAUDE.md` for the full rule.
+
+Step-file markers use `<!-- steps: plan, review, code -->` directly under a heading; the marker scopes that heading section, and unmarked sections appear in all three files. Tag long recipes `review, code` so planning keeps the conventions without their procedures.

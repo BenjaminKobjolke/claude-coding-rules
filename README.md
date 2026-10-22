@@ -18,7 +18,7 @@ For developing the plugin from a local clone, see [DEBUG.md](DEBUG.md).
 
 | Skill | What it does |
 |-------|--------------|
-| `/coding-rules:apply` | Writes the applicable rules (common + language + project type + opted-in addons) into your project's `CODING_RULES.md`, puts a versioned pointer block into `CLAUDE.md`, and installs a plan-acceptance hook that reminds Claude to read the rules. Rule blocks carry a `# Version`; re-running updates only stale blocks and migrates legacy inlined `CLAUDE.md` rules. |
+| `/coding-rules:apply` | Writes the applicable rules into `CODING_RULES.md` and generated `CODING_RULES_PLAN.md`, `CODING_RULES_REVIEW.md` and `CODING_RULES_CODE.md`, puts a versioned pointer block into `CLAUDE.md`, and installs a plan-acceptance hook that reminds Claude to read the rules. Rule blocks carry a `# Version`; re-running updates only stale blocks and migrates legacy inlined `CLAUDE.md` rules. |
 | `/coding-rules:update-all` | Scans configured folders and refreshes every project whose coding-rules manifest is behind the plugin. |
 | `/coding-rules:new-project` | Asks whether a template project exists before a new project is created, copies it, and remembers the chosen template per project type (`templates` in `~/.coding-rules/settings.json`) to suggest it next time. |
 | `/coding-rules:enforce` | Audits your actual codebase against the rules and reports violations — no auto-fixing. |
@@ -61,6 +61,8 @@ rule files bundled. Re-run after updating the repo. Details: [docs/CODEX.md](doc
 ## Why a separate CODING_RULES.md?
 
 Rules are copied (not `@import`-linked) so each project pins the exact rule text it was built against. The `# Version` block per rule file lets `/coding-rules:apply` upgrade stale blocks deliberately instead of rules changing under a project silently.
+
+The generated plan, review and code files filter those same versioned blocks by heading markers, while the complete `CODING_RULES.md` remains available for work without step-specific instructions.
 
 They live in `CODING_RULES.md` instead of `CLAUDE.md` so the ~1,000–1,800 lines of rules are not in context every turn. `CLAUDE.md` carries only a small versioned pointer block that mandates reading `CODING_RULES.md` before any code work. The pointer is deliberately **not** an `@import` — Claude Code auto-expands imports into context, which would defeat the point.
 

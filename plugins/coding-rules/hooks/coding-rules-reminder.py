@@ -27,12 +27,17 @@ PLAN_ACCEPTED = (
     "project's CODING_RULES.md and IMPLEMENTATION_FLOW.md in full in this "
     "session and follow every applicable rule while writing code. If already "
     "read this session, re-confirm the rules relevant to the files you are "
-    "about to change."
+    "about to change. When your run instructions name a step file "
+    "(CODING_RULES_PLAN.md, CODING_RULES_REVIEW.md or CODING_RULES_CODE.md), "
+    "read that file instead of CODING_RULES.md."
 )
 FIRST_EDIT = (
     "First code edit this session. If you have not read the project's "
     "CODING_RULES.md and IMPLEMENTATION_FLOW.md in this session, Read them "
-    "in full before continuing and follow every applicable rule."
+    "in full before continuing and follow every applicable rule. When your "
+    "run instructions name a step file (CODING_RULES_PLAN.md, "
+    "CODING_RULES_REVIEW.md or CODING_RULES_CODE.md), read that file instead "
+    "of CODING_RULES.md."
 )
 
 

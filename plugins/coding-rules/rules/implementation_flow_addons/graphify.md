@@ -1,5 +1,5 @@
 # Version
-14
+15
 
 Increase this version number whenever this rule file changes.
 
@@ -21,6 +21,7 @@ assets — forcing the LLM pass. **Always scope to the code dir; never build the
 Setup instructions live in the coding-rules plugin at `graphify_setup_files/SETUP.md`.
 
 ## Folder layout (know which is which)
+<!-- steps: code -->
 
 - `graphify-out/` at the **project root** = the **live graph** (`graph.json`, `GRAPH_REPORT.md`,
   `graph.html`). The only one queries read. Keep it `directed=True`.
@@ -51,6 +52,7 @@ Setup instructions live in the coding-rules plugin at `graphify_setup_files/SETU
   query/path/explain do not surface enough context.
 
 ## Manual refresh bat (`tools/graphify_update.bat`)
+<!-- steps: code -->
 
 Copied from the `graphify_update.bat` template beside this addon, adjusted (`CODE_DIR`).
 Run it from anywhere — it `pushd`es to the repo root itself.
@@ -65,6 +67,7 @@ Run it from anywhere — it `pushd`es to the repo root itself.
   wired up?" check after cloning, a dependency change, or a graphify upgrade.
 
 ## In-tree vendored code — exclude it, scoping alone won't
+<!-- steps: code -->
 
 `--directed`-scoping the build to `<code-dir>` keeps external `vendor/`/`node_modules/` out
 automatically, but a **committed** third-party library living *inside* `<code-dir>` (a bundled

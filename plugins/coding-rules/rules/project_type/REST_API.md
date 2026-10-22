@@ -1,5 +1,5 @@
 # Version
-7
+8
 
 Increase this version number whenever this rule file changes.
 
@@ -76,6 +76,7 @@ project/
 ---
 
 ## Entry Point
+<!-- steps: review, code -->
 
 `public/index.php` bootstraps the Slim application with WAMP-compatible base path detection:
 
@@ -119,6 +120,7 @@ $app->run();
 ---
 
 ## Dependency Injection Container
+<!-- steps: review, code -->
 
 Implement PSR-11 `ContainerInterface`. Use `match` dispatch for service resolution with lazy-loaded singletons:
 
@@ -219,6 +221,7 @@ $enabled = $isTestEnv ? false : ($config['enabled'] ?? false);
 ---
 
 ## Route Organization
+<!-- steps: review, code -->
 
 Define routes in `src/Config/Routes.php` as a closure that receives the Slim `App`. Group protected routes with `AuthMiddleware`:
 
@@ -256,6 +259,7 @@ return function (App $app): void {
 ---
 
 ## AbstractController
+<!-- steps: review, code -->
 
 All controllers extend `AbstractController` which provides response helpers and request utilities:
 
@@ -323,6 +327,7 @@ class ValidationException extends \Exception
 ---
 
 ## Service Layer
+<!-- steps: review, code -->
 
 Services contain business logic. They receive `ORMInterface` and `EntityManagerInterface` via constructor injection and resolve repositories from ORM:
 
@@ -357,6 +362,7 @@ class HabitService
 ---
 
 ## Repository Pattern
+<!-- steps: review, code -->
 
 Repositories extend `Cycle\ORM\Select\Repository` with typed generics. They encapsulate all database queries:
 
@@ -404,6 +410,7 @@ class HabitRepository extends Repository
 ---
 
 ## Entity Pattern
+<!-- steps: review, code -->
 
 Entities use Cycle ORM annotations. Follow these conventions:
 
@@ -474,6 +481,7 @@ class Habit
 ---
 
 ## Presenter Pattern
+<!-- steps: review, code -->
 
 Presenters handle complex response formatting. They are read-only and receive ORM + services to assemble responses:
 
@@ -709,6 +717,7 @@ the user pays for (tickets-api "high data usage" incident, 2026-09).
 ---
 
 ## JWT Authentication Middleware
+<!-- steps: review, code -->
 
 The `AuthMiddleware` validates Bearer tokens and supports dual token types (JWT + API tokens with prefix):
 
@@ -776,6 +785,7 @@ Document it as dev-only.
 ---
 
 ## CORS Middleware
+<!-- steps: review, code -->
 
 Handle preflight OPTIONS requests and add CORS headers to all responses:
 
@@ -807,6 +817,7 @@ class CorsMiddleware implements MiddlewareInterface
 ---
 
 ## Cron Endpoints
+<!-- steps: review, code -->
 
 Cron routes live OUTSIDE the AuthMiddleware group. Protect them with a password query
 parameter compared via `hash_equals()` against `config['cron_password']`; reject empty or
@@ -835,6 +846,7 @@ The drain method processes pending rows, marks failures, and cleans up old entri
 ---
 
 ## ORM Setup
+<!-- steps: review, code -->
 
 `OrmFactory` initializes Cycle ORM with annotation-based schema compilation and `SyncTables` for automatic migration:
 
@@ -942,6 +954,7 @@ ALTER TABLE <table> DROP INDEX <one of the two identical index names>;
 ---
 
 ## Logging
+<!-- steps: review, code -->
 
 Implements the central `Logger` rule from `PHP_RULES.md` as a file-based rotating logger:
 
@@ -960,6 +973,7 @@ the general application log.
 ---
 
 ## Test Infrastructure
+<!-- steps: review, code -->
 
 ### Base Test Class
 
@@ -1047,6 +1061,7 @@ protected function tearDown(): void
 ---
 
 ## Required Tools
+<!-- steps: review, code -->
 
 Every REST API project must include these batch files in `tools/`:
 
@@ -1075,6 +1090,7 @@ powershell -Command "cd 'tools'; cmd /c '.\run_tests.bat'"
 ---
 
 ## Manual API Testing
+<!-- steps: review, code -->
 
 Use `tools/gen_token.php` to generate JWT tokens for curl testing:
 

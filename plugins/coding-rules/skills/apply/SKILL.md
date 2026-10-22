@@ -128,8 +128,8 @@ and writes `<project>/coding-rules.json`. Parse the JSON report:
 - `errors` items (e.g. an unparsable `settings.json`) — report verbatim; the
   file was left untouched.
 - Otherwise summarize what changed (which rule blocks were updated, pointer
-  status, delegation, hook status) for the user. Include `split_kept` and the
-  inline sections removed from the Python base file.
+  status, delegation, hook status) for the user. Include `step_files`,
+  `split_kept` and the inline sections removed from the Python base file.
 
 Gotchas seen in practice:
 
@@ -167,6 +167,9 @@ the interpreter-detection note above) so it's clear `apply.py` was skipped.
 This is also the only path when `claude-code-only` content is stripped for
 non-Claude-Code agents (see `sync_skills.py`) — in that case the interpreter
 check doesn't apply; just note "Running the manual coding-rules-apply flow."
+After hand-merging, delete any existing `CODING_RULES_PLAN.md`,
+`CODING_RULES_REVIEW.md` and `CODING_RULES_CODE.md`; without generated step
+files, the watcher falls back to the complete `CODING_RULES.md`.
 
 ## Phase B — Migrate legacy CLAUDE.md (idempotent)
 
@@ -190,6 +193,12 @@ other source to `CODING_RULES.md`. Both files are merged the same way, each with
 - If the copied block has no version or its version is lower than the source version, replace that copied block with the current applicable source content.
 - If both versions are equal, leave the copied block unchanged.
 - If the copied version is higher than the source version, do not overwrite it; ask the user how to reconcile the unexpected version.
+
+The fast path generates `CODING_RULES_PLAN.md`, `CODING_RULES_REVIEW.md` and
+`CODING_RULES_CODE.md` from the same merged rule blocks. A marker such as
+`<!-- steps: review, code -->` directly under a heading limits that heading's
+section through the next heading at the same or a higher level; unmarked
+sections appear in all three files.
 
 Identify corresponding copied blocks by the rule document title that follows the version block. Keep all copied rule blocks deduplicated. On first creation, start each file with:
 

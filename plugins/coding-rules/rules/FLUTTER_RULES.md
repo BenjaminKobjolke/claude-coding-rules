@@ -1,5 +1,5 @@
 # Version
-14
+15
 
 Increase this version number whenever this rule file changes.
 
@@ -22,6 +22,7 @@ See `COMMON_RULES.md` for rules that apply to all languages.
 6. Follow SOLID principles (Single Responsibility, Open/Closed, Liskov Substitution, Interface Segregation, Dependency Inversion)
 
 ## Documentation Comments
+<!-- steps: review, code -->
 
 Use `///` doc comments on all public classes, methods, and properties:
 
@@ -152,6 +153,7 @@ data in a mixin, it should probably be a class you inject instead.
 ---
 
 ## Flutter Version Management
+<!-- steps: code -->
 
 Use FVM (Flutter Version Manager) for all projects. Create `.fvmrc` in the project root:
 
@@ -191,6 +193,7 @@ applied to dependencies instead of scripts.
 ---
 
 ## Pin Android Dependencies Declared as Version Ranges
+<!-- steps: review, code -->
 
 Some plugins' Android SDKs declare dependencies as **version ranges** (seen: OneSignal Android
 SDK 5.10.0 via `onesignal_flutter` 5.6.10). For a range Gradle must list the available versions
@@ -259,6 +262,7 @@ Rules:
 # Essential Rules
 
 ## 1) Use `pubspec.yaml` as the single source of truth
+<!-- steps: review, code -->
 
 Keep all dependencies and configuration in `pubspec.yaml`.
 
@@ -271,6 +275,7 @@ Recommended baseline:
 ---
 
 ## 2) Enforce linting and formatting
+<!-- steps: review, code -->
 
 Use the standard Flutter analyzer:
 

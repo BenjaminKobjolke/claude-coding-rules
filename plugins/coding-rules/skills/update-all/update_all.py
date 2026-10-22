@@ -330,6 +330,22 @@ def self_test():
         assert scan_projects([root], ("_old_",), plugin) == 0
     assert apply.load_json(stale / "coding-rules.json", {})["rules"]["FOO.md"] == 2
     assert apply.read_text(current / apply.RULES_FILE) == current_before
+    assert (stale / "CODING_RULES_PLAN.md").exists()
+
+    pointer_stale = temp / "pointer-stale"
+    pointer_stale.mkdir()
+    (pointer_stale / ".git").mkdir()
+    apply.run(pointer_stale, plugin, ["FOO.md"], "neither")
+    pointer_manifest = apply.load_json(pointer_stale / "coding-rules.json", {})
+    pointer_manifest["pointerVersion"] = 0
+    apply.save_json(pointer_stale / "coding-rules.json", pointer_manifest)
+    for filename in ("CODING_RULES_PLAN.md", "CODING_RULES_REVIEW.md", "CODING_RULES_CODE.md"):
+        (pointer_stale / filename).unlink()
+    pointer_entry = check_project(pointer_stale, plugin, apply.load_json(rules / "versions.json", {}))
+    assert pointer_entry["status"] == "updated" and pointer_entry["outdated"] == [
+        {"rule": "pointer", "applied": 0, "current": 1},
+    ], pointer_entry
+    assert (pointer_stale / "CODING_RULES_PLAN.md").exists()
 
     # JSON scan mode keeps the same repo selection, including its scanned count.
     output = io.StringIO()

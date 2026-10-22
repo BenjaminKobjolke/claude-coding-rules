@@ -15,6 +15,7 @@ folders. Repeat the option to process several projects; explicit project paths d
 `settings.json` file. Use `--json` to print one JSON document with `dry_run`, a `projects` array,
 and `totals`. Project entries include the path, status (`updated`, `current`, `needs_decision`,
 `no_manifest`, or `error`), outdated rule versions, decisions, errors, and kept split files.
+An update also rewrites the three generated step rule files alongside `CODING_RULES.md`.
 The command exits with code 1 if any project errors. In JSON mode, settings warnings go to stderr.
 Both options can be combined with `--dry-run` to inspect results without changing projects.
 

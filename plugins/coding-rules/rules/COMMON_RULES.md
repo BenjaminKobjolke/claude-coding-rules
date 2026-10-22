@@ -1,5 +1,5 @@
 # Version
-13
+14
 
 Increase this version number whenever this rule file changes.
 
@@ -11,6 +11,7 @@ corresponding `*_RULES.md` files.
 ---
 
 ## Keep CODING_RULES.md in Sync
+<!-- steps: code -->
 
 When working on a project, copy all relevant rules into the project's `CODING_RULES.md` file
 (project root). The project's `CLAUDE.md` carries only a small versioned pointer block that
@@ -20,6 +21,9 @@ mandates reading `CODING_RULES.md` before code work — never the full rules, an
 - Always include all rules from `COMMON_RULES.md` and `IMPLEMENTATION_FLOW.md`.
   `COMMON_RULES.md` is copied into the project's `CODING_RULES.md`;
   `IMPLEMENTATION_FLOW.md` is copied into the project's own `IMPLEMENTATION_FLOW.md`
+- `apply` also writes `CODING_RULES_PLAN.md`, `CODING_RULES_REVIEW.md` and
+  `CODING_RULES_CODE.md` from the same rule blocks. Use `<!-- steps: plan, review, code -->`
+  under a heading to limit its section.
 - Also include applicable language-specific, project-type, and supplemental rule files
   (see `PROJECT_TYPES.md` for the project-type overview)
 - Include optional addon rule files only when the user has opted in to that addon
@@ -115,6 +119,7 @@ components work correctly together and catch issues that unit tests alone cannot
 ---
 
 ## Test Runner Scripts
+<!-- steps: review, code -->
 
 Every project must provide the following batch files in the `tools/` directory:
 
@@ -146,6 +151,7 @@ or use the runner's own log-file option.
 ---
 
 ## No `pause` in Batch Files
+<!-- steps: review, code -->
 
 Batch files must never contain a `pause` line. `pause` waits for a keypress, so any bat that has one
 hangs forever when run by CI, another bat, or an AI agent. End with an explicit `exit /b <code>`
@@ -186,6 +192,7 @@ from being re-invented in every new project.
 ---
 
 ## New Projects Start From a Template
+<!-- steps: plan -->
 
 Before creating a new project (an API, an app, a tool — anything that gets its own folder),
 ask the user whether a template project exists for that kind of project. Never scaffold from

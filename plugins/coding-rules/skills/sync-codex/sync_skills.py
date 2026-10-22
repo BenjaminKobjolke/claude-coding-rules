@@ -66,11 +66,9 @@ def build_skill(src_md, skill_name, dest_dir, with_rules):
         # AI_RULES.md next to its IMPLEMENTATION_FLOW.md replacement).
         shutil.rmtree(dest_dir / "rules", ignore_errors=True)
         shutil.copytree(PLUGIN_ROOT / "rules", dest_dir / "rules", dirs_exist_ok=True)
-        apply_py = src_md.parent / "apply.py"
-        if apply_py.exists():
-            # No adaptation needed: apply.py takes --plugin-root as a CLI flag,
-            # it has no ${CLAUDE_PLUGIN_ROOT} placeholders to rewrite.
-            shutil.copy2(apply_py, dest_dir / "apply.py")
+        for module in src_md.parent.glob("*.py"):
+            # Apply modules take --plugin-root as a CLI flag and need no path adaptation.
+            shutil.copy2(module, dest_dir / module.name)
     print(f"skill: {skill_name} -> {dest_dir}")
 
 

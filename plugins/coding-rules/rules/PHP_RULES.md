@@ -1,5 +1,5 @@
 # Version
-3
+4
 
 Increase this version number whenever this rule file changes.
 
@@ -85,6 +85,7 @@ composer require twig/twig
 Do not put JS code into templates. Use separate `.js` files.
 
 ## Localization
+<!-- steps: review, code -->
 
 Use the php-localization library for multi-language support:
 https://github.com/BenjaminKobjolke/php-localization.git
@@ -391,6 +392,7 @@ Full documentation: https://github.com/BenjaminKobjolke/php-localization/blob/ma
 ---
 
 ## Database: Cycle ORM Relations & Query Builder
+<!-- steps: review, code -->
 
 ### No Raw SQL
 
@@ -545,6 +547,7 @@ return $query->orderBy('date_actual', 'DESC')
 ---
 
 ## Code Quality
+<!-- steps: review, code -->
 
 ### PHPStan
 
@@ -599,6 +602,7 @@ $logger->error('Failed to load user', ['user_id' => $id, 'exception' => $e]);
 ---
 
 ## Upgrading to a Newer PHP Version
+<!-- steps: code -->
 
 When migrating an existing PHP codebase to a newer language version, follow the workflow in [`PHP_UPGRADE_TO_NEWER_VERSION.md`](PHP_UPGRADE_TO_NEWER_VERSION.md). High-level steps:
 

@@ -1,5 +1,5 @@
 # Version
-1
+2
 
 Increase this version number whenever this rule file changes.
 
@@ -10,6 +10,7 @@ Applies on top of `FLUTTER_RULES.md` when the project is a Flutter app (it has `
 ---
 
 ## Localization
+<!-- steps: review, code -->
 
 Use the `flutter_i18n_translations` library for multi-language support:
 https://github.com/BenjaminKobjolke/flutter-i18n-translations
@@ -152,6 +153,7 @@ class MyWidget extends StatelessWidget {
 ---
 
 ## Translation Key Naming Convention
+<!-- steps: review, code -->
 
 Use dot notation with logical grouping:
 
@@ -170,6 +172,7 @@ common.save            - Reusable UI elements
 ---
 
 ## Translation Keys as Constants
+<!-- steps: review, code -->
 
 Using raw strings like `AppLocalizations.tr('nav.dashboard')` is error-prone. Create a `TK` class with all keys as constants for IDE autocomplete and compile-time checking.
 
@@ -287,6 +290,7 @@ single-file (`assets/i18n/<locale>.json`). Locales come from
 ---
 
 ## Language Switching
+<!-- steps: review, code -->
 
 ```dart
 // Get available languages
@@ -322,6 +326,7 @@ final languageCode = savedLanguage ?? await determineSystemLanguage();
 ---
 
 ## Adding New Languages
+<!-- steps: review, code -->
 
 1. Copy `assets/i18n/en.json` to `assets/i18n/de.json`
 2. Translate all values (keep keys identical)
@@ -559,6 +564,7 @@ Every app must include these batch files:
 ---
 
 ## State Management (Cubit)
+<!-- steps: review, code -->
 
 Use **Cubit** from the `flutter_bloc` package for state management. Cubit is the recommended approach for all Flutter projects.
 
@@ -719,6 +725,7 @@ lib/
 ---
 
 ## HTTP Communication (Dio)
+<!-- steps: review, code -->
 
 Use Dio for all HTTP communication.
 
@@ -919,6 +926,7 @@ holds its data in memory only. The server half of this contract is
 ---
 
 ## Database (ObjectBox)
+<!-- steps: review, code -->
 
 Use ObjectBox for local persistence.
 
@@ -1066,6 +1074,7 @@ class UserRepository {
 ---
 
 ## In-App Debugger (Logarte)
+<!-- steps: review, code -->
 
 For debugging network requests and viewing logs directly on the device, use Logarte.
 

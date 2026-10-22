@@ -26,6 +26,8 @@ import sys
 import tempfile
 from pathlib import Path
 
+import step_rules
+
 MANAGED_COMMENT = "<!-- Managed by /coding-rules:apply — do not edit rule blocks by hand -->"
 
 # Two destinations. CODING_RULES.md holds code quality (binding always);
@@ -89,6 +91,11 @@ An external tool may orchestrate the implementation itself. When a skill or run
 states that the implementation is orchestrated, ignore `IMPLEMENTATION_FLOW.md`
 entirely — the orchestrator runs those steps as its own phases. `CODING_RULES.md`
 stays binding either way.
+
+Next to `CODING_RULES.md`, apply also writes `CODING_RULES_PLAN.md`,
+`CODING_RULES_REVIEW.md` and `CODING_RULES_CODE.md`. When an orchestrator's run
+instructions name one of these step files, that file replaces `CODING_RULES.md`
+for that run; without such an instruction, `CODING_RULES.md` stays binding in full.
 
 Do not inline rules back into this file and do not use `@import` for either file —
 they are intentionally referenced, not imported.
@@ -707,7 +714,7 @@ def run(project, plugin_root, requested_rules, delegation):
     manifest["rules"] = {LEGACY_RELS.get(rel, rel): ver for rel, ver in manifest["rules"].items()}
 
     report = {"rules": [], "split_kept": [], "pointer": None, "delegation": None, "hooks": None,
-              "needs_user_decision": [], "errors": []}
+              "needs_user_decision": [], "errors": [], "step_files": []}
 
     # Phase B: migrate legacy blocks out of CLAUDE.md
     claude_path = project / "CLAUDE.md"
@@ -765,6 +772,15 @@ def run(project, plugin_root, requested_rules, delegation):
     new_crm_header, new_flow_header, resolved_delegation = rebuild_headers(
         crm_header, flow_header, delegation)
     write_coding_rules(crm_path, new_crm_header, crm_blocks)
+    generated_blocks = step_rules.step_blocks(crm_blocks)
+    for step, filename in step_rules.STEP_FILES.items():
+        blocks = generated_blocks[filename]
+        step_path = project / filename
+        if blocks:
+            write_coding_rules(step_path, step_rules.step_header(new_crm_header, step), blocks)
+            report["step_files"].append(filename)
+        elif step_path.exists():
+            step_path.unlink()
     if flow_blocks or flow_path.exists():
         write_coding_rules(flow_path, new_flow_header, flow_blocks)
     manifest["delegation"] = resolved_delegation
@@ -805,6 +821,8 @@ def print_report(report):
         print(f"  rule {item['rule']}: {item['status']}")
     if report["split_kept"]:
         print(f"  kept: {', '.join(report['split_kept'])}")
+    if report.get("step_files"):
+        print(f"  step files: {', '.join(report['step_files'])}")
     print(f"  pointer: {report['pointer']}")
     print(f"  delegation: {report['delegation']}")
     print(f"  hooks: {report['hooks']}")
@@ -831,9 +849,10 @@ def check_versions(plugin_root):
         rel = md.relative_to(plugin_root / "rules").as_posix()
         seen.add(rel)
         try:
+            step_rules.check_markers(text)
             version, _ = parse_source_version_title(text)
         except ValueError as e:
-            problems.append(f"{rel}: cannot parse version header ({e})")
+            problems.append(f"{rel}: invalid rule file ({e})")
             continue
         if rel not in versions:
             problems.append(f"{rel}: missing from versions.json")
@@ -855,6 +874,55 @@ def check_versions(plugin_root):
 # -------------------------------------------------------------------- self-test
 
 def self_test():
+    step_rules.self_test()
+
+    generated_plugin = Path(tempfile.mkdtemp())
+    generated_rules = generated_plugin / "rules"
+    generated_rules.mkdir()
+    generated_source = generated_rules / "SAMPLE.md"
+    generated_source.write_text(
+        "# Version\n1\n\n# Sample Rules\n\nshared\n\n"
+        "## Code only\n<!-- steps: code -->\ncode detail\n", encoding="utf-8")
+    save_json(generated_rules / "versions.json", {"pointer": 3, "SAMPLE.md": 1})
+    generated_project = Path(tempfile.mkdtemp())
+    generated_report = run(generated_project, generated_plugin, ["SAMPLE.md"], "neither")
+    expected_step_files = list(step_rules.STEP_FILES.values())
+    assert generated_report["step_files"] == expected_step_files, generated_report
+    complete_rules = read_text(generated_project / RULES_FILE)
+    assert "code detail" in complete_rules and "instructions name one of these step files" in read_text(
+        generated_project / "CLAUDE.md")
+    plan_rules = read_text(generated_project / step_rules.STEP_FILES["plan"])
+    assert "shared" in plan_rules and "code detail" not in plan_rules, plan_rules
+    for filename in expected_step_files:
+        assert parse_block_version(read_text(generated_project / filename)) == 1, filename
+
+    generated_source.write_text(
+        "# Version\n2\n\n# Sample Rules\n\nshared v2\n\n"
+        "## Code only\n<!-- steps: code -->\ncode detail v2\n", encoding="utf-8")
+    save_json(generated_rules / "versions.json", {"pointer": 3, "SAMPLE.md": 2})
+    run(generated_project, generated_plugin, ["SAMPLE.md"], "neither")
+    assert parse_block_version(read_text(generated_project / RULES_FILE)) == 2
+    assert all(parse_block_version(read_text(generated_project / filename)) == 2
+               for filename in expected_step_files)
+
+    empty_project = Path(tempfile.mkdtemp())
+    for filename in expected_step_files:
+        write_text(empty_project / filename, "stale step rules")
+    empty_report = run(empty_project, generated_plugin, [], "neither")
+    assert empty_report["step_files"] == [] and all(
+        not (empty_project / filename).exists() for filename in expected_step_files)
+
+    invalid_plugin = Path(tempfile.mkdtemp())
+    (invalid_plugin / "rules").mkdir()
+    (invalid_plugin / "rules" / "BAD.md").write_text(
+        "# Version\n1\n\n# Bad\n<!-- steps: code, someday -->\n", encoding="utf-8")
+    save_json(invalid_plugin / "rules" / "versions.json", {"BAD.md": 1})
+    try:
+        check_versions(invalid_plugin)
+        raise AssertionError("unknown step marker must fail check-versions")
+    except SystemExit as exc:
+        assert exc.code == 1
+
     # Delegate wrappers are installed by the shared apply boundary and only
     # rewritten when their shipped content changes.
     wrapper_root = Path(tempfile.mkdtemp())
