@@ -1,5 +1,5 @@
 # Version
-4
+5
 
 Increase this version number whenever this rule file changes.
 
@@ -27,6 +27,17 @@ Frontend single-page applications, framework-agnostic. Covers Vite build tooling
 (`base: './'`, dev server API proxy), Tailwind CSS with PostCSS, and OS-aware dark mode.
 
 Pair with the framework/language rules, e.g. `SVELTE_RULES.md` and `SCSS_RULES.md`.
+
+For PHP-rendered pages use the server-rendered type instead.
+
+## Server-Rendered PHP Frontend — `project_type/SERVER_RENDERED_FRONTEND.md`
+
+Server-rendered PHP web frontends using Slim 4, Twig 3, Bootstrap 5, and Guzzle against a separate
+REST API, with PHP sessions, SCSS, and esbuild TypeScript. The type covers the frontend/API boundary,
+page data loading, controllers, API client, Twig, forms, and the frontend build.
+
+Pair with `PHP_RULES.md`, `SCSS_RULES.md`, and `TYPESCRIPT_RULES.md`; `DESIGN_RULES.md` applies (it
+has a UI).
 
 ## Flutter app vs. library
 

@@ -1,5 +1,5 @@
 # Version
-1
+2
 
 Increase this version number whenever this rule file changes.
 
@@ -13,6 +13,7 @@ guides are:
 
 - `python_setup_files/MODERN_GUI.md` — PySide6 desktop apps
 - `project_type/FRONTEND.md` — web SPAs (Vite, Tailwind, dark mode)
+- `project_type/SERVER_RENDERED_FRONTEND.md` — server-rendered PHP web frontends (Twig, Bootstrap)
 
 Default UI toolkits ship a *safe* look, not a good one: gradient buttons, boxed tabs,
 every control the same size, no hierarchy. An interface built from defaults reads as a
