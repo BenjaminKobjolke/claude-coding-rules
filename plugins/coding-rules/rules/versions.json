@@ -4,7 +4,7 @@
   "IMPLEMENTATION_FLOW.md": 25,
   "PHP_RULES.md": 3,
   "PYTHON_RULES.md": 8,
-  "CSHARP_RULES.md": 1,
+  "CSHARP_RULES.md": 2,
   "CPP_RULES.md": 1,
   "JAVASCRIPT_RULES.md": 1,
   "TYPESCRIPT_RULES.md": 1,
@@ -34,5 +34,6 @@
   "python/RELEASE.md": 1,
   "python/INSTALLER.md": 1,
   "python/DATABASE.md": 1,
-  "graphify_setup_files/SETUP.md": 1
+  "graphify_setup_files/SETUP.md": 1,
+  "csharp/WINFORMS.md": 1
 }

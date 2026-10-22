@@ -33,6 +33,10 @@ Always read `${CLAUDE_PLUGIN_ROOT}/rules/COMMON_RULES.md` and `${CLAUDE_PLUGIN_R
   content; `python/RELEASE.md` for release tooling; `python/INSTALLER.md` for NSIS
   installers; `python/DATABASE.md` for SQLAlchemy. On first setup, pick by project
   type and ask when unsure.
+- C# optional rules: `csharp/WINFORMS.md` for Windows Forms desktop apps
+  (`System.Windows.Forms` / `<UseWindowsForms>` in the `.csproj`); skip it for console
+  tools, services and libraries. An existing C# project crossing the v2 split keeps it
+  automatically via `split_kept`.
 - Project-type rules: see `PROJECT_TYPES.md` for the overview, files in `project_type/`
 - Supplemental rules: `DESIGN_RULES.md` — include when the project has a user interface
   (desktop, web, mobile, TUI); skip it for libraries, APIs, and headless tools
@@ -48,8 +52,8 @@ If `<project>/coding-rules.json` already exists, read it: its `rules` map is the
 project's declared selection (keys are paths relative to `rules/`, e.g. `PYTHON_RULES.md`,
 `project_type/REST_API.md`). On a re-run, only ask the user about deltas
 (newly-relevant languages/project types) instead of re-deriving the whole list.
-When an existing Python project first crosses the v7 split, `apply.py` keeps
-detected optional files automatically and reports them in `split_kept`. Tell the
+When an existing Python project first crosses the v7 split or a C# project first
+crosses the v2 split, `apply.py` keeps detected optional files automatically and reports them in `split_kept`. Tell the
 user which files were kept and which inline sections went away. To opt out of an
 optional file, remove its copied block and its `rules` key from the manifest.
 

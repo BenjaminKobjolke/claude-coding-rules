@@ -48,6 +48,7 @@ LEGACY_RELS = {
 # user-authored content by split_orphan_tail during the migration.
 HEADING_ALIASES = {
     FLOW_TITLE: {LEGACY_FLOW_TITLE},
+    "# C# Rules (.NET)": {"# C# Rules (.NET Framework / Windows Forms)"},
     "# Essential Additional Rules (must-have)": {"# 8 Essential Additional Rules (must-have)"},
 }
 
@@ -58,6 +59,8 @@ SPLITS = {"PYTHON_RULES.md": (7, {
     "python/RELEASE.md": ("build_version.txt", "tools/release/"),
     "python/INSTALLER.md": ("installer/", "tools/build_installer.bat"),
     "python/DATABASE.md": ("sqlalchemy",),
+}), "CSHARP_RULES.md": (2, {
+    "csharp/WINFORMS.md": ("system.windows.forms", "usewindowsforms"),
 })}
 
 POINTER_TITLE = "# Coding Rules (Pointer)"
@@ -302,6 +305,10 @@ def process_rules(blocks, plugin_root, requested, manifest_rules, versions):
         parsed_version, title = parse_source_version_title(src_text)
         version = versions.get(rel, parsed_version)
         existing = blocks_by_title.get(title)
+        if existing is None:
+            existing = next((blocks_by_title[alias]
+                             for alias in HEADING_ALIASES.get(title, ())
+                             if alias in blocks_by_title), None)
         applied = manifest_rules.get(rel)
         if applied is None and existing is not None:
             # No manifest entry yet (pre-manifest project) -- trust the version
@@ -654,10 +661,14 @@ def uninstall_local_hooks(project):
 
 def project_uses(project, markers):
     pyproject = project / "pyproject.toml"
-    manifest_text = read_text(pyproject).lower() if pyproject.exists() else ""
-    # ponytail: substring matching also sees comments and may keep extra rules;
-    # parse dependencies with tomllib if false positives become a problem.
-    return any((project / marker).exists() or marker.lower() in manifest_text
+    project_text = read_text(pyproject) if pyproject.exists() else ""
+    project_files = [path for pattern in ("*.csproj", "*/*.csproj")
+                     for path in project.glob(pattern)]
+    project_text += "\n" + "\n".join(read_text(path) for path in project_files)
+    project_text = project_text.lower()
+    # ponytail: substring matching in manifests and .csproj files also sees comments
+    # and may keep extra rules; parse dependencies if false positives become a problem.
+    return any((project / marker).exists() or marker.lower() in project_text
                for marker in markers)
 
 
@@ -1241,6 +1252,59 @@ def self_test():
         again = run(split_project, split_plugin, ["PYTHON_RULES.md"], "keep")
         assert again["split_kept"] == [] and all(x["status"] == "unchanged" for x in again["rules"]), again
         assert read_text(split_project / RULES_FILE) == result
+
+    # C# v1 rules move the WinForms sections to an optional block on the v2 apply.
+    for desktop in (True, False):
+        csharp_plugin = Path(tempfile.mkdtemp())
+        csharp_rules = csharp_plugin / "rules"
+        (csharp_rules / "csharp").mkdir(parents=True)
+        old_csharp = ("# Version\n1\n\n# C# Rules (.NET Framework / Windows Forms)\n\n"
+                      "general rules\n\n## Tray Icon Setup\n\nold tray rules\n")
+        new_csharp = "# Version\n2\n\n# C# Rules (.NET)\n\ngeneral rules\n"
+        (csharp_rules / "CSHARP_RULES.md").write_text(old_csharp, encoding="utf-8")
+        save_json(csharp_rules / "versions.json", {"pointer": 1, "CSHARP_RULES.md": 1})
+
+        csharp_project = Path(tempfile.mkdtemp())
+        app_dir = csharp_project / "MyApp"
+        app_dir.mkdir()
+        project_text = ("<Project><ItemGroup><Reference Include=\"System.Windows.Forms\" />"
+                        "</ItemGroup></Project>" if desktop else
+                        "<Project><PropertyGroup><OutputType>Exe</OutputType></PropertyGroup></Project>")
+        (app_dir / "MyApp.csproj").write_text(project_text, encoding="utf-8")
+        run(csharp_project, csharp_plugin, ["CSHARP_RULES.md"], "neither")
+
+        (csharp_rules / "CSHARP_RULES.md").write_text(new_csharp, encoding="utf-8")
+        (csharp_rules / "csharp" / "WINFORMS.md").write_text(
+            "# Version\n1\n\n# C# Windows Forms Desktop Rules\n\nnew tray rules\n", encoding="utf-8")
+        save_json(csharp_rules / "versions.json", {
+            "pointer": 1, "CSHARP_RULES.md": 2, "csharp/WINFORMS.md": 1})
+
+        split_report = run(csharp_project, csharp_plugin, ["CSHARP_RULES.md"], "keep")
+        assert split_report["split_kept"] == (["csharp/WINFORMS.md"] if desktop else []), split_report
+        result = read_text(csharp_project / RULES_FILE)
+        assert result.count("# C# Rules") == 1 and "# C# Rules (.NET)" in result, result
+        assert "old tray rules" not in result and ("new tray rules" in result) == desktop, result
+        assert load_json(csharp_project / "coding-rules.json", {})["rules"] == (
+            {"CSHARP_RULES.md": 2, "csharp/WINFORMS.md": 1} if desktop
+            else {"CSHARP_RULES.md": 2})
+        result_before_second_run = result
+        again = run(csharp_project, csharp_plugin, ["CSHARP_RULES.md"], "keep")
+        assert again["split_kept"] == [] and all(
+            item["status"] == "unchanged" for item in again["rules"]), again
+        assert read_text(csharp_project / RULES_FILE) == result_before_second_run
+
+    marker_project = Path(tempfile.mkdtemp())
+    (marker_project / "MyApp").mkdir()
+    (marker_project / "MyApp" / "MyApp.csproj").write_text(
+        "<Project><PropertyGroup><UseWindowsForms>true</UseWindowsForms></PropertyGroup></Project>",
+        encoding="utf-8")
+    assert project_uses(marker_project, ("system.windows.forms", "usewindowsforms"))
+    (marker_project / "MyApp" / "MyApp.csproj").write_text(
+        "<Project><ItemGroup><Reference Include=\"System.Windows.Forms\" /></ItemGroup></Project>",
+        encoding="utf-8")
+    assert project_uses(marker_project, ("system.windows.forms", "usewindowsforms"))
+    assert not project_uses(Path(tempfile.mkdtemp()),
+                            ("system.windows.forms", "usewindowsforms"))
 
     marker_project = Path(tempfile.mkdtemp())
     (marker_project / "pyproject.toml").write_text('dependencies = ["PySide6>=6"]\n', encoding="utf-8")
