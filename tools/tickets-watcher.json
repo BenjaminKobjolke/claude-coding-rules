@@ -3,9 +3,20 @@
     "TICKETS_WATCHER_COMMANDS.md": 2
   },
   "command_check_scripts": [
+    "analyze_changed_and_new_files.bat",
+    "analyze_code.bat",
+    "analyze_code_config.bat",
+    "analyze_code_config.example.bat",
+    "fix_ruff_issues.bat",
+    "fix_ruff_issues_dry_run.bat",
     "graphify_update.bat"
   ],
-  "analysis_commands": [],
+  "analysis_commands": [
+    {
+      "command": "tools/analyze_changed_and_new_files.bat",
+      "kind": "code_quality"
+    }
+  ],
   "analysis_commands_seen": {
     "scripts": [
       "graphify_update.bat"
