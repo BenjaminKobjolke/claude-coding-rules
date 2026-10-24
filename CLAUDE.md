@@ -56,3 +56,17 @@ Whenever you change any `plugins/coding-rules/rules/*.md` file:
 
 See `plugins/coding-rules/rules/CREATE_NEW_RULES.md` for the required header
 block on brand-new rule files.
+
+## Post-Implementation Code Analysis
+
+After implementing a feature, finishing a plan, or fixing a bug, run the changed-file analyzer and
+fix every reported issue before considering the work complete:
+
+```bash
+cmd /c ".\tools\analyze_changed_and_new_files.bat"
+```
+
+This invokes cli-code-analyzer with `--only-changed`, which reports only on new or modified files
+compared with Git `HEAD`, including untracked files and excluding deleted files. Run
+`tools\analyze_code.bat` for a whole-project audit, before a release or merge, after a shared-code
+refactor, or when the working tree is clean and the changed-file run would report no files.
