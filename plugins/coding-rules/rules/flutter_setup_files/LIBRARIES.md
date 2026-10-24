@@ -1,5 +1,5 @@
 # Version
-2
+3
 
 # Flutter Libraries
 
@@ -28,6 +28,7 @@ table below with a reference implementation, so the next project picks it up aut
 | `flutter_dotenv` | `^5.1.0` | `.env` secrets loading (only when secrets exist) |
 | `flutter_screen_recording` | `^2.0.25` | Native screen recording (MediaProjection / ReplayKit) — used by the `automated_screenshot_connector` demo host |
 | `mobile_scanner` | `^7.4.2` | Camera QR / barcode scanning — Android, iOS, macOS, web only (no Windows/Linux) |
+| `code_forge` + `re_highlight` | `^11.3.0` / `^0.0.3` | Read-only code viewer with syntax highlighting and line numbers |
 
 Versions are the last confirmed-good constraints. Verify against pub.dev before pinning a new
 project — do not assume.
@@ -123,6 +124,26 @@ Reference implementations from GoRabbits App:
 
 - `turbo-habits-app/lib/screens/friends/friend_qr_scanner_screen.dart` — scanner screen.
 - `turbo-habits-app/lib/widgets/friends/add_friend_dialog.dart` — platform-gated entry point.
+
+## Code viewer — `code_forge`
+
+Show source code with syntax highlighting and line numbers; the first use is a read-only view of a
+todo's most complex function.
+
+```yaml
+dependencies:
+  # Code viewer
+  code_forge: ^11.3.0
+  re_highlight: ^0.0.3
+```
+
+`re_highlight` is `code_forge`'s highlighting engine; list it directly because the language
+definitions are imported from it. Pick the language from a string and fall back to plain text for
+an unknown one.
+
+Reference implementation from Tickets App:
+
+- `lib/screens/most_complex_function_screen.dart` — read-only viewer of a todo's most complex function (#12564).
 
 ## Everything else
 
