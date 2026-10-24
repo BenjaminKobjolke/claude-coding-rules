@@ -1,5 +1,5 @@
 # Version
-5
+6
 
 Increase this version number whenever this rule file changes.
 
@@ -24,11 +24,19 @@ Pair with `PHP_RULES.md`.
 ## Frontend SPA — `project_type/FRONTEND.md`
 
 Frontend single-page applications, framework-agnostic. Covers Vite build tooling
-(`base: './'`, dev server API proxy), Tailwind CSS with PostCSS, and OS-aware dark mode.
+(`base: './'` by default or per build target, dev server API proxy), Tailwind CSS with
+PostCSS, and OS-aware dark mode or a user-facing theme toggle.
 
 Pair with the framework/language rules, e.g. `SVELTE_RULES.md` and `SCSS_RULES.md`.
 
 For PHP-rendered pages use the server-rendered type instead.
+
+## React + Vite Apps in a pnpm Workspace
+
+Pair `project_type/FRONTEND.md` with `TYPESCRIPT_RULES.md` and
+`typescript/PNPM_WORKSPACE.md`. Add `typescript/ELECTRON.md` when the workspace
+has an Electron desktop app. `DESIGN_RULES.md` applies. Do not apply
+`JAVASCRIPT_RULES.md` to this setup.
 
 ## Server-Rendered PHP Frontend — `project_type/SERVER_RENDERED_FRONTEND.md`
 

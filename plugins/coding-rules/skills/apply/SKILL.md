@@ -27,7 +27,8 @@ Always read `${CLAUDE_PLUGIN_ROOT}/rules/COMMON_RULES.md` and `${CLAUDE_PLUGIN_R
 ## Phase A — Determine applicable rule files
 
 - Always: `COMMON_RULES.md` and `IMPLEMENTATION_FLOW.md`
-- Language-specific rules: `PHP_RULES.md`, `PYTHON_RULES.md`, `CSHARP_RULES.md`, `CPP_RULES.md`, `FLUTTER_RULES.md`, `KOTLIN_RULES.md` (Kotlin / native Android Gradle projects, app or library; setup files in `kotlin_setup_files/`), `SVELTE_RULES.md`, `SCSS_RULES.md`, `ARDUINO_RULES.md`, `AUTOHOTKEY_RULES.md`, `UNITY_CSHARP_RULES.md`, `WORDPRESS_RULES.md`
+- Language-specific rules: `PHP_RULES.md`, `PYTHON_RULES.md`, `CSHARP_RULES.md`, `CPP_RULES.md`, `JAVASCRIPT_RULES.md` (Bun CLI apps; also add `TYPESCRIPT_RULES.md` for TypeScript), `TYPESCRIPT_RULES.md` (any TypeScript project), `FLUTTER_RULES.md`, `KOTLIN_RULES.md` (Kotlin / native Android Gradle projects, app or library; setup files in `kotlin_setup_files/`), `SVELTE_RULES.md`, `SCSS_RULES.md`, `ARDUINO_RULES.md`, `AUTOHOTKEY_RULES.md`, `UNITY_CSHARP_RULES.md`, `WORDPRESS_RULES.md`
+- TypeScript optional rules: `typescript/PNPM_WORKSPACE.md` when `pnpm-workspace.yaml` exists (Node runtime and vitest); when applying it, skip `JAVASCRIPT_RULES.md`. Add `typescript/ELECTRON.md` when a `package.json` depends on `electron`.
 - Python optional rules: `python/WEB_TEMPLATES.md` for Jinja2 or Flask web templates;
   `python/GUI.md` for PySide6 desktop apps; `python/LOCALIZATION.md` for translated
   content; `python/RELEASE.md` for release tooling; `python/INSTALLER.md` for NSIS

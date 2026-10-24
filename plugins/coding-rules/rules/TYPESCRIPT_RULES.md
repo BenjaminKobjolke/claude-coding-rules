@@ -1,14 +1,20 @@
 # Version
-1
+2
 
 Increase this version number whenever this rule file changes.
 
 # TypeScript Rules (Bun / Node)
 
 See `COMMON_RULES.md` for rules that apply to all languages.
-See `JAVASCRIPT_RULES.md` for the base runtime, structure, and tooling
-conventions — they all apply (with `.ts` file extensions); this file adds the
-type layer.
+
+This file is the type layer for any TypeScript project. Runtime, layout, build,
+and test conventions come from the paired runtime file:
+
+- Bun CLI apps: `JAVASCRIPT_RULES.md` (all of it applies, with `.ts` file
+  extensions).
+- pnpm/Node workspaces: `typescript/PNPM_WORKSPACE.md` (do not apply
+  `JAVASCRIPT_RULES.md`).
+- Browser code bundled by another project type: that type's own section.
 
 ## tsconfig
 
@@ -22,11 +28,14 @@ Strict from day one:
     "module": "ESNext",
     "moduleResolution": "bundler",
     "target": "ESNext",
-    "types": ["bun-types"],
     "verbatimModuleSyntax": true
   }
 }
 ```
+
+`types` follows the runtime: `bun-types` for Bun, `node` for Node packages,
+and `vite/client` for Vite browser apps. Never mix Node and DOM types in one
+package.
 
 Never weaken `strict` per-file. `// @ts-expect-error` needs a trailing reason
 comment; `// @ts-ignore` is forbidden.
@@ -110,7 +119,7 @@ Central logger per the COMMON_RULES logger table: `logger` export in
 
 ## Testing
 
-Same bun-test conventions as `JAVASCRIPT_RULES.md` (`tests/*.test.ts`, e2e CLI
-tests, DI seams, `__test__` export) — with typed seams: the
-`__setXxxDepsForTest(deps)` parameter is a `Partial<XxxDeps>` interface, so
-tests get completion and the seam cannot drift from the real dependencies.
+The test runner and file layout come from the runtime file. Typed seams apply
+either way: the `__setXxxDepsForTest(deps)` parameter is a
+`Partial<XxxDeps>` interface, so tests get completion and the seam cannot drift
+from the real dependencies.

@@ -1,5 +1,5 @@
 # Version
-3
+4
 
 Increase this version number whenever this rule file changes.
 
@@ -16,14 +16,16 @@ Use Vite as the build tool with ES modules (`"type": "module"` in package.json).
 
 ### Base Path
 
-Always set `base: './'` for relative asset paths. This allows deployment in any subdirectory without reconfiguration:
+Use `base: './'` by default for relative asset paths. One app built for several targets (for example, a desktop shell loading from `file://` and a web build served from `/`) may choose the base per build target in `vite.config`, using one build flag:
 
 ```javascript
 // vite.config.js
 export default defineConfig({
-  base: './',
+  base: isDesktop ? './' : '/',
 });
 ```
+
+Never hard-code a deployment subpath.
 
 ### Dev Server Proxy
 
@@ -51,12 +53,12 @@ Use Tailwind CSS with PostCSS and Autoprefixer.
 
 ### Dark Mode
 
-Use OS-aware dark mode via the `media` strategy — no manual toggle needed:
+Use OS-aware dark mode via the `media` strategy by default when the app has no theme switch. When the app has a user-facing theme toggle, use a class or attribute strategy instead. Start from `prefers-color-scheme` until the user chooses, store the choice, and set the class or attribute before first paint to avoid a flash:
 
 ```javascript
 // tailwind.config.js
 export default {
-  darkMode: 'media',
+  darkMode: ['class', '[data-theme="dark"]'],
   content: ['./index.html', './src/**/*.{svelte,js,ts,jsx,tsx}'],
 };
 ```
