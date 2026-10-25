@@ -226,20 +226,31 @@ A project applied before the split has the flow inlined in `CODING_RULES.md`. Mo
 
 ### Tailored blocks and user-authored sections
 
-- When you tailor a copied rule block to the project (trim inapplicable sections,
+- Tailoring is the last resort (see *When the shipped rules do not fit*). When you
+  tailor a copied rule block to the project (trim inapplicable sections,
   substitute real paths/dirs), insert `<!-- tailored -->`
   on its own line directly after the block's title heading. `apply.py` never
   auto-overwrites a tailored block: a newer source version is reported as
-  `tailored-stale` in `needs_user_decision`, and you hand-merge the source changes
-  into the tailored copy (then bump the block's version to match the source).
-  `apply.py` reads the applied version from `coding-rules.json`, not from the block —
-  so after a hand-merge also bump that rule's version in the manifest, otherwise the
-  next run still reports `tailored-stale`. Re-run `apply.py` to confirm it comes back
-  `unchanged`.
+  `tailored-stale` in `needs_user_decision`. Offer these choices, with **Use the
+  standard rules** as the default:
+  - **Use the standard rules**: delete the `<!-- tailored -->` line and re-run
+    `apply.py`. It replaces the block with the current source like any stale block.
+    Check the `preserved` list for project-only sections that survived, and report
+    anything the tailoring had that is now gone.
+  - **Hand-merge into the tailored copy**: merge the source changes, then bump the
+    block's version to match the source. `apply.py` reads the applied version from
+    `coding-rules.json`, not from the block — also bump that rule's version in the
+    manifest, otherwise the next run still reports `tailored-stale`. Re-run
+    `apply.py` to confirm it comes back `unchanged`.
+  - **Request new rules from the library**: use the request route described in
+    *When the shipped rules do not fit*. Until those rules ship, use the standard
+    rules above unless the user picks the hand merge.
 - A tailored addon usually has tailored **setup files** too (e.g.
   `tools/graphify_update.bat` from `implementation_flow_addons/`). `apply.py` never touches those —
-  diff the project copy against the template on a `tailored-stale` merge and re-copy it,
-  re-applying the project's substitutions (`CODE_DIR`, paths).
+  diff the project copy against the template on a `tailored-stale` merge. This applies
+  to both **Use the standard rules** and the hand merge: for the standard rules,
+  re-copy the template and keep only the project's required substitutions (`CODE_DIR`,
+  paths); for a hand merge, re-apply those substitutions.
 - User-authored top-level sections after the last managed block (project deviations,
   project-specific rules, …) are preserved by `apply.py` when a block is replaced —
   any heading the source doc doesn't contain starts preserved content, reported per
@@ -383,6 +394,26 @@ project is version-controlled.
 `IMPLEMENTATION_FLOW.md` is language-independent and always applies — it is NOT subject to the "some rules may not apply to this project" filtering below. Always include it in full. Every project gets both destination files; there is no opt-out.
 
 For language-specific, project-type, and supplemental rules, include the rules that apply to the current project. Some rules might not apply (for example Twig template rules for a project that is only an API). Include optional addon rules only after the user opts in. If you are unsure which rules apply, ask the user whether to include all candidate rules or only the applicable ones.
+
+### When the shipped rules do not fit
+
+Use this when the project's language, framework, or project type has no matching
+rule file, or a shipped file contradicts the project's stack (for example, Bun-only
+rules for a pnpm/Node monorepo, as in #12645). When asking how to handle the gap,
+offer these options in this order, with the first as the default on first setup and
+when a rule file becomes newly relevant:
+
+1. **Request new rules from the library** (default): file a todo in the Coding Rules
+   project naming the stack, what the shipped rules get wrong or miss, and the project
+   that needs them. Meanwhile apply the shipped files that do fit, then re-run
+   `/coding-rules:apply` once the new rules ship. Inside a tickets run, use that run's
+   cross-project todo route; outside a tickets run, tell the user what to request.
+2. **Use the standard rules** as shipped.
+3. **Leave the file out.**
+4. **Tailor a copy** (`<!-- tailored -->`) as the last resort.
+
+Tailored copies go stale on every update, while new library rules help every project
+with the same stack.
 
 ## Setup file templates
 
