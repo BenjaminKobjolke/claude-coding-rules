@@ -1,6 +1,6 @@
 {
   "files": {
-    "TICKETS_WATCHER_COMMANDS.md": 2
+    "TICKETS_WATCHER_COMMANDS.md": 3
   },
   "command_check_scripts": [
     "analyze_changed_and_new_files.bat",
@@ -12,16 +12,21 @@
     "graphify_update.bat"
   ],
   "analysis_commands": [
-    {
-      "command": "tools/analyze_changed_and_new_files.bat",
-      "kind": "code_quality"
-    }
+    "tools\\analyze_changed_and_new_files.bat"
   ],
   "analysis_commands_seen": {
     "scripts": [
+      "analyze_changed_and_new_files.bat",
+      "analyze_code.bat",
+      "analyze_code_config.bat",
+      "analyze_code_config.example.bat",
+      "fix_ruff_issues.bat",
+      "fix_ruff_issues_dry_run.bat",
       "graphify_update.bat"
     ],
     "tests": true
   },
-  "analysis_code_quality_answered": true
+  "analysis_code_quality_answered": true,
+  "analysis_tests_answered": true,
+  "analysis_format_command": "tools/fix_ruff_issues.bat"
 }
