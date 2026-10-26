@@ -12,8 +12,18 @@
     "graphify_update.bat"
   ],
   "analysis_commands": [
-    "tools\\analyze_changed_and_new_files.bat"
+    "tools\\analyze_changed_and_new_files.bat",
+    "python plugins/coding-rules/skills/apply/apply.py --self-test",
+    "python plugins/coding-rules/skills/update-all/update_all.py --self-test",
+    "python plugins/coding-rules/skills/sync-codex/sync_skills.py --self-test",
+    "python plugins/coding-rules/rules/flutter_setup_files/icon_transfer/test_icon_transfer_engine.py"
   ],
+  "analysis_command_kinds": {
+    "python plugins/coding-rules/skills/apply/apply.py --self-test": "test",
+    "python plugins/coding-rules/skills/update-all/update_all.py --self-test": "test",
+    "python plugins/coding-rules/skills/sync-codex/sync_skills.py --self-test": "test",
+    "python plugins/coding-rules/rules/flutter_setup_files/icon_transfer/test_icon_transfer_engine.py": "test"
+  },
   "analysis_commands_seen": {
     "scripts": [
       "analyze_changed_and_new_files.bat",
@@ -28,5 +38,25 @@
   },
   "analysis_code_quality_answered": true,
   "analysis_tests_answered": true,
-  "analysis_format_command": "tools/fix_ruff_issues.bat"
+  "analysis_format_command": "tools/fix_ruff_issues.bat",
+  "analysis_command_states": {
+    "tools/fix_ruff_issues.bat": {
+      "code_quality": "green"
+    },
+    "tools\\analyze_changed_and_new_files.bat": {
+      "code_quality": "green"
+    },
+    "python plugins/coding-rules/skills/apply/apply.py --self-test": {
+      "test": "green"
+    },
+    "python plugins/coding-rules/skills/update-all/update_all.py --self-test": {
+      "test": "green"
+    },
+    "python plugins/coding-rules/skills/sync-codex/sync_skills.py --self-test": {
+      "test": "green"
+    },
+    "python plugins/coding-rules/rules/flutter_setup_files/icon_transfer/test_icon_transfer_engine.py": {
+      "test": "green"
+    }
+  }
 }
