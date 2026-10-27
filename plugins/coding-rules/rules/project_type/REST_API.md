@@ -1,5 +1,5 @@
 # Version
-8
+9
 
 Increase this version number whenever this rule file changes.
 
@@ -7,7 +7,7 @@ Increase this version number whenever this rule file changes.
 
 These rules apply to PHP REST API projects using Slim 4 + Cycle ORM.
 See `COMMON_RULES.md` for rules that apply to all languages.
-See `PHP_RULES.md` for general PHP rules (config files, timezone handling, batch files).
+See `PHP_RULES.md` for general PHP rules and `php/APP.md` for config files, timezone handling, and batch files.
 
 ---
 
@@ -525,7 +525,7 @@ class SharedHabitPresenter
   item (N+1), add a purpose-built endpoint named after the screen, such as
   `GET /api/v1/dashboard` or `GET /api/v1/habits/overview`.
 - Build the overview response with a Presenter; keep the controller thin.
-- Preload relations with Cycle `load()` as documented in `PHP_RULES.md` -> "Eager Loading with
+- Preload relations with Cycle `load()` as documented in `php/APP.md` -> "Eager Loading with
   `load()`", or use one batched repository query for unrelated records. Never query once per
   row, which only moves the N+1 problem to the server.
 - Return only what the screen shows, using slim rows as described in "Response Size and Mobile
@@ -927,7 +927,7 @@ change. Cycle suffixes index names with `uniqid()`, so MySQL/MariaDB accepts the
 - **The compile MUST run under a MySQL named lock** (`GET_LOCK` / `finally RELEASE_LOCK`, as
   above), with the table reflection *inside* the lock: the request that waited diffs the state
   the winner left behind and issues no DDL. No lock within the timeout is an exception, never an
-  unguarded sync. This is the one sanctioned exception to "No Raw SQL" in `PHP_RULES.md`.
+  unguarded sync. This is the one sanctioned exception to "No Raw SQL" in `php/APP.md`.
 - **Never resolve the ORM eagerly in `Routes.php`.** Add middleware by `::class` string only. An
   exception thrown outside `$app->run()` bypasses Slim's error middleware: empty `500` on every
   route, no CORS headers, nothing in the app log. If eager resolution is unavoidable, wrap app

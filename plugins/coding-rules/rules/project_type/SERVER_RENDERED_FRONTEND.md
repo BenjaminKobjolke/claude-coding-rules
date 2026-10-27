@@ -1,14 +1,14 @@
 # Version
-1
+2
 
 Increase this version number whenever this rule file changes.
 
 # Server-Rendered PHP Frontend Rules
 
 These rules apply to PHP web frontends that render HTML on the server with Twig, call a separate
-REST API for data, and do not own a database. They complement `COMMON_RULES.md` and `PHP_RULES.md`.
+REST API for data, and do not own a database. They complement `COMMON_RULES.md`, `PHP_RULES.md`, and `php/APP.md`.
 
-Pair with `PHP_RULES.md`, `SCSS_RULES.md`, `TYPESCRIPT_RULES.md`, and `DESIGN_RULES.md` — rules there are not repeated here.
+Pair with `PHP_RULES.md`, `php/APP.md`, `SCSS_RULES.md`, `TYPESCRIPT_RULES.md`, and `DESIGN_RULES.md` — rules there are not repeated here.
 
 ---
 
@@ -125,7 +125,7 @@ session data, so one slow page does not serialize the user's other requests.
 
 Keep API endpoint names, route names, session keys, and flash message types in constants classes in
 `src/Config/`, such as `ApiEndpoints`, `RouteNames`, `SessionKeys`, and `FlashMessageTypes`.
-`TranslationKeys` is defined by `PHP_RULES.md`. Build links with route names through `url_for()`;
+`TranslationKeys` is defined by `PHP_RULES.md`; localization rules are in `php/APP.md`. Build links with route names through `url_for()`;
 never hard-code route paths into templates or controllers.
 
 ---
@@ -137,7 +137,7 @@ never hard-code route paths into templates or controllers.
   confirm that the controller supplies every variable the template reads.
 - Use the project's `asset()` Twig function for assets. It must account for the deployment base path
   and append a cache-busting version (for example, a file modification time). This type-specific
-  rule overrides `PHP_RULES.md` advice to use plain relative paths: nested routes such as
+  rule overrides `php/APP.md` advice to use plain relative paths: nested routes such as
   `/customers/5/edit` make relative paths resolve from the wrong directory.
 - Do not add `only` to an include when the component needs shared globals.
 - Share create and edit markup through a `_form` partial where their fields are the same.
@@ -148,7 +148,7 @@ never hard-code route paths into templates or controllers.
 
 Submit mutations from HTML forms using POST and validate a CSRF token in middleware. The controller
 validates input into a typed object, then asks `ApiClient` to send the corresponding PUT, PATCH, or
-DELETE request to the separate API. Follow `PHP_RULES.md` → “Value Objects at Input Boundaries”.
+DELETE request to the separate API. Follow `php/APP.md` → “Value Objects for `$_POST` / `$_GET` Boundaries”.
 Use post/redirect/get with a flash message for the ordinary non-AJAX response.
 
 ---
@@ -195,7 +195,7 @@ Guzzle `MockHandler`, so they need neither a live API nor a database. The `run_*
 return PHPUnit's exit code; see `COMMON_RULES.md` → “Test Runner Scripts”.
 
 This project type has no database of its own, so its integration tests use the mocked API handler
-instead of the database mirror described in `PHP_RULES.md` → “Required Batch Files”.
+instead of the database mirror described in `php/APP.md` → “Required Batch Files”.
 
 ---
 

@@ -1,5 +1,5 @@
 # Version
-1
+2
 
 Increase this version number whenever this rule file changes.
 
@@ -189,7 +189,7 @@ Table name (`$wpdb->prefix . 'acme'`) is interpolated; **values** are always `%d
 
 ## Localization
 
-WordPress-native equivalent of the localization section in `PHP_RULES.md` — use WP i18n, not `php-localization`.
+WordPress-native equivalent of the localization section in `php/APP.md` — use WP i18n, not `php-localization`.
 
 - Text domain equals the theme/plugin slug and is a **string literal** at every call site (the `.pot` scanner cannot read variables or constants).
 - Wrap every user-facing string; combine with escaping on output.

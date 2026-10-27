@@ -1,5 +1,5 @@
 # Version
-6
+7
 
 Increase this version number whenever this rule file changes.
 
@@ -19,7 +19,13 @@ helpers, service/repository/presenter layers, auth + CORS middleware, `SyncTable
 auto-migration, `ApiTestCase` test infrastructure, endpoint documentation in
 `docs/endpoints/`, Hoppscotch collections, and required `tools/*.bat` files.
 
-Pair with `PHP_RULES.md`.
+Pair with `PHP_RULES.md` and `php/APP.md`.
+
+## PHP Library — `project_type/PHP_LIBRARY.md`
+
+Framework-free Composer packages (`"type": "library"`), typically using Guzzle with PHPUnit unit
+tests and live-API integration tests. Pair with `PHP_RULES.md` alone; skip `php/APP.md` and
+`DESIGN_RULES.md`.
 
 ## Frontend SPA — `project_type/FRONTEND.md`
 
@@ -44,7 +50,7 @@ Server-rendered PHP web frontends using Slim 4, Twig 3, Bootstrap 5, and Guzzle 
 REST API, with PHP sessions, SCSS, and esbuild TypeScript. The type covers the frontend/API boundary,
 page data loading, controllers, API client, Twig, forms, and the frontend build.
 
-Pair with `PHP_RULES.md`, `SCSS_RULES.md`, and `TYPESCRIPT_RULES.md`; `DESIGN_RULES.md` applies (it
+Pair with `PHP_RULES.md`, `php/APP.md`, `SCSS_RULES.md`, and `TYPESCRIPT_RULES.md`; `DESIGN_RULES.md` applies (it
 has a UI).
 
 ## Flutter app vs. library
