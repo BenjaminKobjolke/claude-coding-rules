@@ -124,11 +124,14 @@ def migrate_legacy(text, title_to_rel, plugin_root=None):
 def project_uses(project, markers):
     pyproject = project / "pyproject.toml"
     project_text = read_text(pyproject) if pyproject.exists() else ""
+    composer = project / "composer.json"
+    if composer.exists():
+        project_text += "\n" + read_text(composer)
     project_files = [path for pattern in ("*.csproj", "*/*.csproj")
                      for path in project.glob(pattern)]
     project_text += "\n" + "\n".join(read_text(path) for path in project_files)
     project_text = project_text.lower()
-    # ponytail: substring matching in manifests and .csproj files also sees comments
+    # ponytail: substring matching in project manifests sees comments
     # and may keep extra rules; parse dependencies if false positives become a problem.
     return any((project / marker).exists() or marker.lower() in project_text
                for marker in markers)

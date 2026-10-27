@@ -45,6 +45,11 @@ SPLITS = {"PYTHON_RULES.md": (7, {
     "csharp/WINFORMS.md": ("system.windows.forms", "usewindowsforms"),
 }), "FLUTTER_RULES.md": (14, {
     "flutter/APP.md": ("lib/main.dart", "android/app/"),
+}), "PHP_RULES.md": (5, {
+    "php/APP.md": (
+        "public/index.php", ".htaccess", "slim/slim", "twig/twig", "cycle/orm",
+        "config/database.php.example",
+    ),
 })}
 
 POINTER_TITLE = "# Coding Rules (Pointer)"

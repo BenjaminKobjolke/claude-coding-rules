@@ -241,18 +241,19 @@ def check_versions(plugin_root):
 
 
 # -------------------------------------------------------------------- self-test
-
 def self_test():
     step_rules.self_test()
 
     # Import lazily because tests import apply, which would cycle during startup.
     from self_test_blocks import self_test as test_blocks
     from self_test_project_setup import self_test as test_project_setup
+    from self_test_php_split import self_test as test_php_split
     from self_test_python_split import self_test as test_python_split
     from self_test_shipped_rules import self_test as test_shipped_rules
 
     for test in (
-        test_blocks, test_project_setup, test_python_split, test_shipped_rules
+        test_blocks, test_project_setup, test_php_split, test_python_split,
+        test_shipped_rules
     ):
         test()
     print("self-test OK")
