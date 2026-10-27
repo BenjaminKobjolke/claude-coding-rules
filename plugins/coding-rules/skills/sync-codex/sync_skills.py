@@ -67,7 +67,8 @@ def build_skill(src_md, skill_name, dest_dir, with_rules):
         shutil.rmtree(dest_dir / "rules", ignore_errors=True)
         shutil.copytree(PLUGIN_ROOT / "rules", dest_dir / "rules", dirs_exist_ok=True)
         for module in src_md.parent.glob("*.py"):
-            # Apply modules take --plugin-root as a CLI flag and need no path adaptation.
+            # Apply modules take --plugin-root as a CLI flag and need no
+            # path adaptation.
             shutil.copy2(module, dest_dir / module.name)
     print(f"skill: {skill_name} -> {dest_dir}")
 
@@ -78,18 +79,25 @@ def sync(target="codex"):
         sys.exit(1)
     skills_dir = TARGETS[target]
     build_skill(PLUGIN_ROOT / "skills" / "apply" / "SKILL.md",
-                "coding-rules-apply", skills_dir / "coding-rules-apply", with_rules=True)
+                "coding-rules-apply", skills_dir / "coding-rules-apply",
+                with_rules=True)
     build_skill(PLUGIN_ROOT / "skills" / "enforce" / "SKILL.md",
-                "coding-rules-enforce", skills_dir / "coding-rules-enforce", with_rules=False)
+                "coding-rules-enforce", skills_dir / "coding-rules-enforce",
+                with_rules=False)
     print(f"\nDone. Target: {skills_dir}")
 
 
 def self_test():
-    out = adapt("rules at `${CLAUDE_PLUGIN_ROOT}/rules/COMMON_RULES.md`, run `/coding-rules:apply` first")
+    out = adapt(
+        "rules at `${CLAUDE_PLUGIN_ROOT}/rules/COMMON_RULES.md`, "
+        "run `/coding-rules:apply` first"
+    )
     assert "`rules/COMMON_RULES.md`" in out, out
     assert "the `coding-rules-apply` skill first" in out, out
     assert "CLAUDE_PLUGIN_ROOT" not in out
-    assert adapt("run /coding-rules:apply now") == "run the coding-rules-apply skill now"
+    assert adapt("run /coding-rules:apply now") == (
+        "run the coding-rules-apply skill now"
+    )
     front, body = split_frontmatter("---\ndescription: d\n---\n\nBody.\n")
     assert front == ["description: d\n"] and body == "Body.\n", (front, repr(body))
     stripped = adapt("keep A\n<!-- claude-code-only:start -->\nhook stuff\n"
