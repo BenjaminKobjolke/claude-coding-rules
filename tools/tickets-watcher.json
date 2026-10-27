@@ -58,5 +58,6 @@
     "python plugins/coding-rules/rules/flutter_setup_files/icon_transfer/test_icon_transfer_engine.py": {
       "test": "green"
     }
-  }
+  },
+  "project_id": 12286
 }
