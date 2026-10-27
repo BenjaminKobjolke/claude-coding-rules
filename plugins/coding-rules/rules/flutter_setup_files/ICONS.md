@@ -1,5 +1,5 @@
 # Version
-2
+3
 
 Increase this version number whenever this rule file changes.
 
@@ -293,10 +293,12 @@ Set up the designer handoff when the project has icon artwork that a designer
 redraws. The template exports editable PNG and SVG sources with notes, then
 validates returned artwork before importing it.
 
-Copy these five runtime and test files from this rule's `icon_transfer/` folder
+Copy these seven runtime and test files from this rule's `icon_transfer/` folder
 into the project's `tools/` folder:
 
 - `icon_transfer.py`
+- `icon_config.py`
+- `icon_images.py`
 - `icon_placeholders.py`
 - `icons_export.bat`
 - `icons_import.bat`
