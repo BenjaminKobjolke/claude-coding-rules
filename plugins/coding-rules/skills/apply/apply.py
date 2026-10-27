@@ -14,695 +14,33 @@ what's stale. Source-of-truth versions come from
 `<plugin-root>/rules/versions.json`; `--check-versions` guards that index
 against the `# Version` header in each md file so they can't drift.
 
-Run:  python apply.py --project <dir> --plugin-root <dir> --rules A.md,B.md [--delegation codex|deepseek|neither|keep] [--json]
+Run:  python apply.py --project <dir> --plugin-root <dir> --rules A.md,B.md
+      [--delegation codex|deepseek|neither|keep] [--json]
 Test: python apply.py --self-test
 Guard: python apply.py --check-versions [--plugin-root <dir>]
 """
 
 import argparse
 import json
-import re
 import sys
-import tempfile
 from pathlib import Path
 
 import step_rules
 
-MANAGED_COMMENT = "<!-- Managed by /coding-rules:apply — do not edit rule blocks by hand -->"
-
-# Two destinations. CODING_RULES.md holds code quality (binding always);
-# IMPLEMENTATION_FLOW.md holds the orchestration steps, which an external
-# orchestrator may run itself and therefore has to be able to ignore wholesale.
-RULES_FILE = "CODING_RULES.md"
-FLOW_FILE = "IMPLEMENTATION_FLOW.md"
-FLOW_TITLE = "# Implementation Flow (All Languages)"
-GRAPHIFY_FLOW_TITLE = "# graphify Flow Steps (Optional Addon)"
-FLOW_RELS = {FLOW_FILE, "implementation_flow_addons/graphify_flow.md"}
-FLOW_TITLES = {FLOW_TITLE, GRAPHIFY_FLOW_TITLE}
-
-# Pre-split names, still found in already-applied projects and stale manifests.
-LEGACY_FLOW_TITLE = "# AI Workflow Rules (All Languages)"
-LEGACY_RELS = {
-    "AI_RULES.md": FLOW_FILE,
-    "ai_rules_addons/graphify.md": "implementation_flow_addons/graphify.md",
-}
-# Titles a source doc is also known by, so an old block isn't mistaken for
-# user-authored content by split_orphan_tail during the migration.
-HEADING_ALIASES = {
-    FLOW_TITLE: {LEGACY_FLOW_TITLE},
-    "# C# Rules (.NET)": {"# C# Rules (.NET Framework / Windows Forms)"},
-    "# Essential Additional Rules (must-have)": {"# 8 Essential Additional Rules (must-have)"},
-}
-
-SPLITS = {"PYTHON_RULES.md": (7, {
-    "python/WEB_TEMPLATES.md": ("jinja2", "flask"),
-    "python/GUI.md": ("pyside6",),
-    "python/LOCALIZATION.md": ("python-localization", "python_localization", "lang/en.json"),
-    "python/RELEASE.md": ("build_version.txt", "tools/release/"),
-    "python/INSTALLER.md": ("installer/", "tools/build_installer.bat"),
-    "python/DATABASE.md": ("sqlalchemy",),
-}), "CSHARP_RULES.md": (2, {
-    "csharp/WINFORMS.md": ("system.windows.forms", "usewindowsforms"),
-}), "FLUTTER_RULES.md": (14, {
-    "flutter/APP.md": ("lib/main.dart", "android/app/"),
-})}
-
-POINTER_TITLE = "# Coding Rules (Pointer)"
-POINTER_BLOCK_TEMPLATE = """# Version
-{version}
-
-# Coding Rules (Pointer)
-
-This project's rules live in two files in the project root:
-
-- `CODING_RULES.md` — code quality and conventions. BINDING for all code work in
-  this repository, always.
-- `IMPLEMENTATION_FLOW.md` — the end-to-end flow to follow when planning and
-  implementing a change (checks, gates, Definition of Done).
-
-MANDATORY: Before writing or editing ANY code, you MUST Read BOTH files in full
-**in the current session**. Do not rely on memory of a previous session, a
-summary, or partial reads.
-
-If you are about to make a code change and have not read both files in this
-session: STOP, read them, then continue.
-
-An external tool may orchestrate the implementation itself. When a skill or run
-states that the implementation is orchestrated, ignore `IMPLEMENTATION_FLOW.md`
-entirely — the orchestrator runs those steps as its own phases. `CODING_RULES.md`
-stays binding either way.
-
-Next to `CODING_RULES.md`, apply also writes `CODING_RULES_PLAN.md`,
-`CODING_RULES_REVIEW.md` and `CODING_RULES_CODE.md`. When an orchestrator's run
-instructions name one of these step files, that file replaces `CODING_RULES.md`
-for that run; without such an instruction, `CODING_RULES.md` stays binding in full.
-
-Do not inline rules back into this file and do not use `@import` for either file —
-they are intentionally referenced, not imported.
-"""
-
-# Both backends go through the same wrapper script (tools/coding_rules_delegate.*),
-# so both need the same entries. Bare and ./-prefixed forms, because the allow
-# entry is matched as a literal command prefix.
-DELEGATE_PERMS = [
-    "Bash(tools/coding_rules_delegate.sh:*)",
-    "Bash(./tools/coding_rules_delegate.sh:*)",
-    "PowerShell(tools/coding_rules_delegate.ps1:*)",
-    "PowerShell(./tools/coding_rules_delegate.ps1:*)",
-]
-
-DELEGATION_PERMS = {
-    "codex": DELEGATE_PERMS,
-    "deepseek": DELEGATE_PERMS,
-}
-
-
-# ---------------------------------------------------------------- IO helpers
-
-def read_text(path):
-    return path.read_text(encoding="utf-8")
-
-
-def write_text(path, text):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text, encoding="utf-8")
-
-
-def load_json(path, default):
-    if not path.exists():
-        return default
-    raw = read_text(path)
-    if not raw.strip():
-        return default
-    return json.loads(raw)
-
-
-def save_json(path, data):
-    write_text(path, json.dumps(data, indent=2) + "\n")
-
-
-# ---------------------------------------------------- fence-aware block scan
-
-def parse_managed(text):
-    """Split text into (lines, blocks) on lines that are exactly '# Version',
-    ignoring such lines inside ``` fences. A block runs to the next such line
-    or EOF, matching the Phase B spec ("a block ends at the next # Version
-    line ... or end of file")."""
-    lines = text.splitlines(keepends=True)
-    in_fence = False
-    starts = []
-    for i, line in enumerate(lines):
-        stripped = line.strip()
-        if stripped.startswith("```"):
-            in_fence = not in_fence
-            continue
-        if not in_fence and stripped == "# Version":
-            starts.append(i)
-    blocks = []
-    for idx, start in enumerate(starts):
-        end = starts[idx + 1] if idx + 1 < len(starts) else len(lines)
-        block_lines = lines[start:end]
-        blocks.append({
-            "start": start,
-            "end": end,
-            "title": find_title(block_lines),
-            "text": "".join(block_lines),
-        })
-    return lines, blocks
-
-
-def find_title(block_lines):
-    """First non-fenced '# <Title>' heading in a block, skipping '# Version' itself."""
-    in_fence = False
-    for line in block_lines[1:]:
-        stripped = line.strip()
-        if stripped.startswith("```"):
-            in_fence = not in_fence
-            continue
-        if in_fence:
-            continue
-        if stripped.startswith("# ") and stripped != "# Version":
-            return stripped
-    return None
-
-
-def parse_block_version(block_text):
-    """Version number of a '# Version' block: the first line matching ^\\d+$
-    after the header, skipping blank lines (historical blocks wrote the number
-    with a blank line in between). None if other content comes first."""
-    lines = block_text.splitlines()
-    it = iter(lines)
-    for line in it:
-        if line.strip() == "# Version":
-            break
-    for line in it:
-        stripped = line.strip()
-        if not stripped:
-            continue
-        return int(stripped) if stripped.isdigit() else None
-    return None
-
-
-def block_is_tailored(block_text):
-    """True if the block carries a non-fenced '<!-- tailored -->' line — a
-    project-tailored copy apply.py must never auto-overwrite."""
-    in_fence = False
-    for line in block_text.splitlines():
-        stripped = line.strip()
-        if stripped.startswith("```"):
-            in_fence = not in_fence
-            continue
-        if not in_fence and stripped == "<!-- tailored -->":
-            return True
-    return False
-
-
-ATX_HEADING_RE = re.compile(r"^#{1,6} ")
-
-
-def source_headings(src_text, all_levels=False):
-    """Non-fenced headings of a source doc, incl. '# Version'. Sources may
-    legitimately have more than one top-level heading (FLUTTER, PYTHON).
-
-    Default (all_levels=False): top-level '# ' headings only -- process_rules'
-    ongoing-update path, kept conservative so it never re-preserves a rule
-    subsection the source deliberately removed.
-    all_levels=True: every ATX heading level ('#'..'######') -- used only by
-    the one-time legacy migration, where over-preservation beats deletion."""
-    heads = {"# Version"}
-    in_fence = False
-    for line in src_text.splitlines():
-        stripped = line.strip()
-        if stripped.startswith("```"):
-            in_fence = not in_fence
-            continue
-        if in_fence:
-            continue
-        if all_levels and ATX_HEADING_RE.match(stripped):
-            heads.add(stripped)
-        elif not all_levels and stripped.startswith("# "):
-            heads.add(stripped)
-    for head in list(heads):
-        heads |= HEADING_ALIASES.get(head, set())
-    return heads
-
-
-def split_orphan_tail(block_text, src_text, all_levels=False, extra_headings=()):
-    """Split an existing block into (managed_text, orphan_text) at the first
-    non-fenced heading the source doc doesn't contain. The orphan is
-    user-authored content that must survive a block replacement. See
-    source_headings() for what all_levels changes."""
-    known = source_headings(src_text, all_levels=all_levels) | set(extra_headings)
-    lines = block_text.splitlines(keepends=True)
-    in_fence = False
-    for i, line in enumerate(lines):
-        stripped = line.strip()
-        if stripped.startswith("```"):
-            in_fence = not in_fence
-            continue
-        if in_fence:
-            continue
-        is_heading = ATX_HEADING_RE.match(stripped) if all_levels else stripped.startswith("# ")
-        if is_heading and stripped not in known:
-            return "".join(lines[:i]), "".join(lines[i:])
-    return block_text, ""
-
-
-def parse_source_version_title(text):
-    lines = text.splitlines()
-    if not lines or lines[0].strip() != "# Version":
-        raise ValueError("file does not start with a '# Version' header")
-    version = int(lines[1].strip())
-    title = find_title(lines)
-    if title is None:
-        raise ValueError("no '# <Title>' heading found after the version header")
-    return version, title
-
-
-# --------------------------------------------------------- CODING_RULES.md
-
-def read_coding_rules(path):
-    if not path.exists():
-        return "", []
-    text = read_text(path)
-    lines, blocks = parse_managed(text)
-    if not blocks:
-        return text, []
-    header = "".join(lines[:blocks[0]["start"]])
-    return header, [{"title": b["title"], "text": b["text"]} for b in blocks]
-
-
-def write_coding_rules(path, header, blocks):
-    body = "\n\n".join(b["text"].rstrip("\n") for b in blocks)
-    text = header.rstrip("\n") + "\n\n"
-    text += (body + "\n") if body else ""
-    write_text(path, text)
-
-
-def process_rules(blocks, plugin_root, requested, manifest_rules, versions):
-    """Version-merge each requested rule's source into the block list.
-    Returns (blocks, new_manifest_rules, report)."""
-    blocks_by_title = {b["title"]: b for b in blocks}
-    new_manifest_rules = dict(manifest_rules)
-    report = []
-    for rel in requested:
-        src_path = plugin_root / "rules" / rel
-        if not src_path.exists():
-            report.append({"rule": rel, "status": "error", "detail": "source file not found"})
-            continue
-        src_text = read_text(src_path)
-        parsed_version, title = parse_source_version_title(src_text)
-        version = versions.get(rel, parsed_version)
-        existing = blocks_by_title.get(title)
-        if existing is None:
-            existing = next((blocks_by_title[alias]
-                             for alias in HEADING_ALIASES.get(title, ())
-                             if alias in blocks_by_title), None)
-        applied = manifest_rules.get(rel)
-        if applied is None and existing is not None:
-            # No manifest entry yet (pre-manifest project) -- trust the version
-            # already written in the existing block instead of treating it as
-            # absent, so an up-to-date block isn't blindly rewritten.
-            applied = parse_block_version(existing["text"])
-        if applied is not None and applied > version:
-            new_manifest_rules[rel] = applied  # keep the conflicting version on record
-            report.append({"rule": rel, "status": "conflict",
-                            "detail": f"manifest version {applied} > source version {version}"})
-            continue
-        if applied == version and existing is not None:
-            new_manifest_rules[rel] = version  # already applied -- still record it
-            report.append({"rule": rel, "status": "unchanged", "version": version})
-            continue
-        if existing is not None and block_is_tailored(existing["text"]):
-            # Project-tailored copy: stale, but a verbatim overwrite would
-            # destroy the tailoring -- hand-merge is a judgment call.
-            if applied is not None:
-                new_manifest_rules[rel] = applied
-            report.append({"rule": rel, "status": "tailored-stale",
-                            "detail": f"tailored block at version {applied}, source at {version} — hand-merge required"})
-            continue
-        new_text = src_text if src_text.endswith("\n") else src_text + "\n"
-        item = {"rule": rel, "status": "updated", "version": version}
-        if existing is not None:
-            _, orphan = split_orphan_tail(existing["text"], src_text)
-            existing["text"] = new_text
-            existing["title"] = title
-            if orphan:
-                orphan_title = next(
-                    (l.strip() for l in orphan.splitlines() if l.strip().startswith("# ")), None)
-                blocks.insert(blocks.index(existing) + 1,
-                              {"title": orphan_title, "text": orphan})
-                item["preserved"] = [orphan_title]
-        else:
-            new_block = {"title": title, "text": new_text}
-            blocks.append(new_block)
-            blocks_by_title[title] = new_block
-        new_manifest_rules[rel] = version
-        report.append(item)
-    return blocks, new_manifest_rules, report
-
-
-def reconcile_manifest(blocks, manifest_rules, title_to_rel):
-    """Ensure every recognized block currently in CODING_RULES.md is recorded in
-    the manifest, even if its rel wasn't passed in --rules this run (e.g. a
-    block from an earlier install). The manifest mirrors the file, not the
-    catalog: rules never applied to this project stay absent."""
-    new_manifest_rules = dict(manifest_rules)
-    for b in blocks:
-        rel = title_to_rel.get(b["title"])
-        if rel is None or rel in new_manifest_rules:
-            continue
-        ver = parse_block_version(b["text"])
-        if ver is not None:
-            new_manifest_rules[rel] = ver
-    return new_manifest_rules
-
-
-MARKER_RE = re.compile(r"^<!-- (codex|deepseek): (enabled|disabled) -->$")
-
-
-def split_header(header_text):
-    """-> (codex_state, deepseek_state, other_lines). Drops the managed comment
-    and the delegation markers; keeps everything else the user put up there."""
-    codex_state = deepseek_state = None
-    other = []
-    for line in header_text.splitlines():
-        stripped = line.strip()
-        m = MARKER_RE.match(stripped)
-        if m:
-            if m.group(1) == "codex":
-                codex_state = m.group(2)
-            else:
-                deepseek_state = m.group(2)
-            continue
-        if stripped.startswith("<!-- Managed by"):
-            continue
-        if stripped:
-            other.append(stripped)
-    return codex_state, deepseek_state, other
-
-
-def compose_header(other_lines, resolved=None):
-    """Managed comment, the delegation markers when `resolved` is given, then
-    the user's own header lines."""
-    lines = [MANAGED_COMMENT]
-    if resolved is not None:
-        lines.append("<!-- codex: %s -->" % ("enabled" if resolved == "codex" else "disabled"))
-        lines.append("<!-- deepseek: %s -->" % ("enabled" if resolved == "deepseek" else "disabled"))
-    lines.extend(other_lines)
-    return "\n".join(lines) + "\n\n"
-
-
-def rebuild_headers(rules_header, flow_header, delegation_choice):
-    """Rebuild both file headers. The delegation markers live in
-    IMPLEMENTATION_FLOW.md only -- delegation is a property of the flow, so a
-    run that ignores the flow file must ignore its delegation setting too. A
-    marker still sitting in CODING_RULES.md is a pre-split project: read it,
-    then leave it behind. Returns (rules_header, flow_header, resolved)."""
-    codex_r, deepseek_r, other_r = split_header(rules_header)
-    codex_f, deepseek_f, other_f = split_header(flow_header)
-    codex_state = codex_f if codex_f is not None else codex_r
-    deepseek_state = deepseek_f if deepseek_f is not None else deepseek_r
-
-    if delegation_choice == "keep":
-        if codex_state == "enabled":
-            resolved = "codex"
-        elif deepseek_state == "enabled":
-            resolved = "deepseek"
-        else:
-            resolved = "neither"
-    else:
-        resolved = delegation_choice
-
-    return compose_header(other_r), compose_header(other_f, resolved), resolved
-
-
-def destination_for(rel):
-    return FLOW_FILE if rel in FLOW_RELS else RULES_FILE
-
-
-def migrate_flow_blocks(rules_blocks, flow_blocks):
-    """One-time split: move flow-owned blocks out of CODING_RULES.md into
-    IMPLEMENTATION_FLOW.md, retitling the pre-split '# AI Workflow Rules' block
-    so process_rules recognizes it (and so its version, and any user-authored
-    tail below it, survive). Returns (rules_blocks, flow_blocks, moved_titles)."""
-    keep, moved = [], []
-    for b in rules_blocks:
-        (moved if b["title"] in FLOW_TITLES or b["title"] == LEGACY_FLOW_TITLE else keep).append(b)
-    present = {b["title"] for b in flow_blocks}
-    moved_titles = []
-    for b in moved:
-        if b["title"] == LEGACY_FLOW_TITLE:
-            b["text"] = b["text"].replace(LEGACY_FLOW_TITLE, FLOW_TITLE, 1)
-            b["title"] = FLOW_TITLE
-        if b["title"] in present:
-            continue  # the flow file already owns it -- drop the stale copy
-        flow_blocks.append(b)
-        present.add(b["title"])
-        moved_titles.append(b["title"])
-    return keep, flow_blocks, moved_titles
+from apply_constants import DELEGATION_PERMS, FLOW_FILE, LEGACY_RELS, RULES_FILE
+from file_io import load_json, read_text, save_json, write_text
+from project_setup import (
+    apply_pointer, install_delegate_wrappers, merge_json_permissions,
+)
+from project_setup import rebuild_headers, uninstall_local_hooks
+from rule_blocks import block_is_tailored, parse_source_version_title, process_rules
+from rule_blocks import read_coding_rules, reconcile_manifest, write_coding_rules
+from rule_migration import build_title_index, destination_for, migrate_flow_blocks
+from rule_migration import migrate_legacy, split_supplements
 
 
 # -------------------------------------------------------------- CLAUDE.md
 
-def build_title_index(plugin_root, versions):
-    """title -> rel path, for every shipped rule file listed in versions.json."""
-    index = {}
-    for rel in versions:
-        if rel == "pointer":
-            continue
-        src_path = plugin_root / "rules" / rel
-        if not src_path.exists():
-            continue
-        _, title = parse_source_version_title(read_text(src_path))
-        index[title] = rel
-        for alias in HEADING_ALIASES.get(title, ()):
-            index.setdefault(alias, rel)
-    return index
-
-
-def strip_legacy_imports(text):
-    lines = text.splitlines(keepends=True)
-    return "".join(
-        line for line in lines
-        if not (line.strip().startswith("@") and "CODING_RULES.md" in line)
-    )
-
-
-def migrate_legacy(text, title_to_rel, plugin_root=None):
-    """Move recognized legacy '# Version' blocks out of CLAUDE.md text into a
-    migrated-versions dict; leave unrecognized ones untouched and reported.
-    A recognized block's own content is dropped (it moves into CODING_RULES.md
-    via process_rules), but any user-authored tail after the block's own
-    headings -- e.g. project notes appended below the last inlined rule doc,
-    which parse_managed's '# Version'-only split has no way to see as a
-    separate block -- is preserved verbatim (regression: previously deleted
-    whole). Returns (new_text, migrated_rel_to_version, unrecognized_titles)."""
-    if not text:
-        return text, {}, [], []
-    lines, blocks = parse_managed(text)
-    if not blocks:
-        return strip_legacy_imports(text), {}, [], []
-
-    header_end = blocks[0]["start"]
-    result_lines = list(lines[:header_end])
-    migrated = {}
-    unrecognized = []
-    tailored = []
-    for b in blocks:
-        if b["title"] == POINTER_TITLE:
-            result_lines.extend(lines[b["start"]:b["end"]])
-            continue
-        rel = title_to_rel.get(b["title"])
-        ver = parse_block_version(b["text"]) if rel else None
-        if rel and ver is not None:
-            if block_is_tailored(b["text"]):
-                tailored.append(rel)
-                result_lines.extend(lines[b["start"]:b["end"]])
-                continue
-            migrated[rel] = ver
-            src_path = (plugin_root / "rules" / rel) if plugin_root else None
-            try:
-                src_text = read_text(src_path) if src_path else None
-            except OSError:
-                src_text = None
-            if src_text is None:
-                # Can't tell rule content from tail -- keep the whole block
-                # rather than silently delete unknown user content.
-                result_lines.extend(lines[b["start"]:b["end"]])
-            else:
-                extra = set()
-                if rel in SPLITS and ver < SPLITS[rel][0]:
-                    for optional in SPLITS[rel][1]:
-                        optional_path = plugin_root / "rules" / optional
-                        if optional_path.exists():
-                            extra |= source_headings(read_text(optional_path), all_levels=True)
-                _, orphan = split_orphan_tail(b["text"], src_text, all_levels=True,
-                                              extra_headings=extra)
-                if orphan:
-                    result_lines.append(orphan)
-            continue
-        unrecognized.append(b["title"] or "(untitled block)")
-        result_lines.extend(lines[b["start"]:b["end"]])
-    return strip_legacy_imports("".join(result_lines)), migrated, unrecognized, tailored
-
-
-def apply_pointer(claude_text, manifest_pointer_version, source_version):
-    """Returns (new_claude_text, resolved_pointer_version, status)."""
-    lines, blocks = parse_managed(claude_text)
-    existing = next((b for b in blocks if b["title"] == POINTER_TITLE), None)
-
-    if manifest_pointer_version is None and existing is not None:
-        # No manifest entry yet (pre-manifest project) -- trust the version
-        # already in the existing pointer block instead of treating it as
-        # absent, so an up-to-date pointer isn't rewritten for nothing.
-        manifest_pointer_version = parse_block_version(existing["text"])
-
-    if existing is not None and manifest_pointer_version is not None and manifest_pointer_version > source_version:
-        return claude_text, manifest_pointer_version, "conflict"
-    if existing is not None and manifest_pointer_version == source_version:
-        return claude_text, manifest_pointer_version, "unchanged"
-
-    if existing is not None:
-        # The pointer block runs to the next '# Version' line or EOF, so in the
-        # common CLAUDE.md -- pointer on top, the project's own guidance below,
-        # no further '# Version' -- that guidance is *inside* the block. Split it
-        # back off at the first heading the template doesn't have, or replacing
-        # the block deletes the whole file body.
-        _, orphan = split_orphan_tail(
-            existing["text"], POINTER_BLOCK_TEMPLATE.format(version=source_version),
-            all_levels=True)
-        rest_lines = lines[:existing["start"]] + [orphan] + lines[existing["end"]:]
-    else:
-        rest_lines = lines
-    rest_text = "".join(rest_lines).lstrip("\n")
-
-    new_text = POINTER_BLOCK_TEMPLATE.format(version=source_version).rstrip("\n") + "\n"
-    new_text += ("\n\n" + rest_text) if rest_text.strip() else "\n"
-    return new_text, source_version, "updated"
-
-
-# --------------------------------------------------------------- JSON merges
-
-def merge_json_permissions(path, entries):
-    """Ensure each allow-string in `entries` is present. Returns (changed, error)."""
-    if path.exists():
-        raw = read_text(path)
-        try:
-            data = json.loads(raw) if raw.strip() else {}
-        except json.JSONDecodeError:
-            return False, "invalid_json"
-    else:
-        data = {}
-    allow = data.setdefault("permissions", {}).setdefault("allow", [])
-    changed = False
-    for entry in entries:
-        if entry not in allow:
-            allow.append(entry)
-            changed = True
-    if changed or not path.exists():
-        write_text(path, json.dumps(data, indent=2) + "\n")
-    return changed, None
-
-
-def install_delegate_wrappers(project, plugin_root):
-    """Copy changed delegation wrappers into the project. Return whether changed."""
-    source_dir = plugin_root / "rules" / "delegate_setup_files"
-    changed = False
-    for name in ("coding_rules_delegate.sh", "coding_rules_delegate.ps1"):
-        source = read_text(source_dir / name)
-        destination = project / "tools" / name
-        if not destination.exists() or read_text(destination) != source:
-            write_text(destination, source)
-            changed = True
-    return changed
-
-
-def uninstall_local_hooks(project):
-    """Remove the legacy per-project reminder-hook install.
-
-    The hooks now ship with the plugin (hooks/hooks.json, ${CLAUDE_PLUGIN_ROOT}),
-    so the copied script and the settings.json entries are dead weight — and the
-    old entries used a relative path that broke whenever cwd was a subfolder.
-    The user's coding-rules-reminder.off flag is kept. Returns a status string.
-    """
-    removed = False
-    script = project / ".claude" / "hooks" / "coding-rules-reminder.py"
-    if script.exists():
-        script.unlink()
-        removed = True
-
-    path = project / ".claude" / "settings.json"
-    if path.exists():
-        raw = read_text(path)
-        try:
-            data = json.loads(raw) if raw.strip() else {}
-        except json.JSONDecodeError:
-            return "error"
-        settings_changed = False
-        hooks = data.get("hooks")
-        if isinstance(hooks, dict):
-            for event in list(hooks):
-                arr = hooks.get(event)
-                if not isinstance(arr, list):
-                    continue
-                kept = []
-                for entry in arr:
-                    inner = [h for h in entry.get("hooks", [])
-                             if "coding-rules-reminder" not in h.get("command", "")]
-                    if len(inner) != len(entry.get("hooks", [])):
-                        settings_changed = True
-                        if not inner:
-                            continue
-                        entry["hooks"] = inner
-                    kept.append(entry)
-                if kept:
-                    hooks[event] = kept
-                else:
-                    del hooks[event]
-            if not hooks:
-                data.pop("hooks", None)
-        if settings_changed:
-            write_text(path, json.dumps(data, indent=2) + "\n")
-            removed = True
-    return "migrated" if removed else "plugin"
-
-
-def project_uses(project, markers):
-    pyproject = project / "pyproject.toml"
-    project_text = read_text(pyproject) if pyproject.exists() else ""
-    project_files = [path for pattern in ("*.csproj", "*/*.csproj")
-                     for path in project.glob(pattern)]
-    project_text += "\n" + "\n".join(read_text(path) for path in project_files)
-    project_text = project_text.lower()
-    # ponytail: substring matching in manifests and .csproj files also sees comments
-    # and may keep extra rules; parse dependencies if false positives become a problem.
-    return any((project / marker).exists() or marker.lower() in project_text
-               for marker in markers)
-
-
-def split_supplements(project, blocks, migrated, manifest_rules, requested, title_to_rel):
-    kept = []
-    for parent, (split_version, optional_files) in SPLITS.items():
-        if parent not in requested:
-            continue
-        existing = next((b for b in blocks if title_to_rel.get(b["title"]) == parent), None)
-        if existing is None and parent not in migrated:
-            continue
-        if existing is not None and block_is_tailored(existing["text"]):
-            continue
-        applied = manifest_rules.get(parent)
-        if applied is None:
-            applied = parse_block_version(existing["text"]) if existing else migrated[parent]
-        if applied is None or applied >= split_version:
-            continue
-        for rel, markers in optional_files.items():
-            if rel not in requested and project_uses(project, markers):
-                kept.append(rel)
-    return kept
-
-
-# -------------------------------------------------------------------- run
 
 def run(project, plugin_root, requested_rules, delegation):
     versions = load_json(plugin_root / "rules" / "versions.json", {})
@@ -711,10 +49,14 @@ def run(project, plugin_root, requested_rules, delegation):
     manifest.setdefault("rules", {})
     # Pre-split manifests key the flow rules by their old paths -- rename on
     # load so a migrated project reports `unchanged`, not a full re-apply.
-    manifest["rules"] = {LEGACY_RELS.get(rel, rel): ver for rel, ver in manifest["rules"].items()}
+    manifest["rules"] = {
+        LEGACY_RELS.get(rel, rel): ver for rel, ver in manifest["rules"].items()
+    }
 
-    report = {"rules": [], "split_kept": [], "pointer": None, "delegation": None, "hooks": None,
-              "needs_user_decision": [], "errors": [], "step_files": []}
+    report = {
+        "rules": [], "split_kept": [], "pointer": None, "delegation": None,
+        "hooks": None, "needs_user_decision": [], "errors": [], "step_files": [],
+    }
 
     # Phase B: migrate legacy blocks out of CLAUDE.md
     claude_path = project / "CLAUDE.md"
@@ -722,19 +64,25 @@ def run(project, plugin_root, requested_rules, delegation):
     title_to_rel = build_title_index(plugin_root, versions)
     claude_text, migrated, unrecognized, tailored = migrate_legacy(
         claude_text, title_to_rel, plugin_root)
-    requested = list(dict.fromkeys(LEGACY_RELS.get(rel, rel) for rel in requested_rules))
+    requested = list(
+        dict.fromkeys(LEGACY_RELS.get(rel, rel) for rel in requested_rules)
+    )
     for rel in tailored:
         if rel in requested:
             requested.remove(rel)
         report["needs_user_decision"].append(
-            {"phase": "B", "detail": f"Tailored legacy block in CLAUDE.md: {rel} — hand-merge required"})
+            {"phase": "B", "detail": (
+                f"Tailored legacy block in CLAUDE.md: {rel} — hand-merge required"
+            )})
     for rel, ver in migrated.items():
         manifest["rules"].setdefault(rel, ver)
         if rel not in requested:
             requested.append(rel)
     for title in unrecognized:
         report["needs_user_decision"].append(
-            {"phase": "B", "detail": f"Unrecognized versioned block in CLAUDE.md: {title}"})
+            {"phase": "B", "detail": (
+                f"Unrecognized versioned block in CLAUDE.md: {title}"
+            )})
 
     # Phase C: version-merge rule blocks into their destination file
     crm_path = project / RULES_FILE
@@ -759,14 +107,20 @@ def run(project, plugin_root, requested_rules, delegation):
     report["rules"] = rules_report
     for item in rules_report:
         if item["status"] in ("conflict", "tailored-stale"):
-            report["needs_user_decision"].append({"phase": "C", "detail": f"{item['rule']}: {item['detail']}"})
+            report["needs_user_decision"].append(
+                {"phase": "C", "detail": f"{item['rule']}: {item['detail']}"}
+            )
         elif item["status"] == "error":
-            report["errors"].append({"phase": "C", "detail": f"{item['rule']}: {item['detail']}"})
+            report["errors"].append(
+                {"phase": "C", "detail": f"{item['rule']}: {item['detail']}"}
+            )
 
     # Reconcile: record any recognized block already on disk that wasn't in
     # --rules this run (e.g. added by an earlier install), so the manifest
     # never lags behind what's actually in the files.
-    manifest["rules"] = reconcile_manifest(crm_blocks + flow_blocks, manifest["rules"], title_to_rel)
+    manifest["rules"] = reconcile_manifest(
+        crm_blocks + flow_blocks, manifest["rules"], title_to_rel
+    )
 
     # Phase D2: delegation markers (they live in IMPLEMENTATION_FLOW.md)
     new_crm_header, new_flow_header, resolved_delegation = rebuild_headers(
@@ -777,7 +131,9 @@ def run(project, plugin_root, requested_rules, delegation):
         blocks = generated_blocks[filename]
         step_path = project / filename
         if blocks:
-            write_coding_rules(step_path, step_rules.step_header(new_crm_header, step), blocks)
+            write_coding_rules(
+                step_path, step_rules.step_header(new_crm_header, step), blocks
+            )
             report["step_files"].append(filename)
         elif step_path.exists():
             step_path.unlink()
@@ -788,9 +144,13 @@ def run(project, plugin_root, requested_rules, delegation):
     if resolved_delegation in DELEGATION_PERMS:
         install_delegate_wrappers(project, plugin_root)
         settings_local = project / ".claude" / "settings.local.json"
-        changed, err = merge_json_permissions(settings_local, DELEGATION_PERMS[resolved_delegation])
+        changed, err = merge_json_permissions(
+            settings_local, DELEGATION_PERMS[resolved_delegation]
+        )
         if err:
-            report["errors"].append({"phase": "D2", "file": str(settings_local), "error": err})
+            report["errors"].append(
+                {"phase": "D2", "file": str(settings_local), "error": err}
+            )
 
     # Phase D: pointer block in CLAUDE.md
     pointer_version = versions.get("pointer", 1)
@@ -801,7 +161,10 @@ def run(project, plugin_root, requested_rules, delegation):
     report["pointer"] = pointer_status
     if pointer_status == "conflict":
         report["needs_user_decision"].append(
-            {"phase": "D", "detail": f"CLAUDE.md pointer version {manifest.get('pointerVersion')} > source {pointer_version}"})
+            {"phase": "D", "detail": (
+                f"CLAUDE.md pointer version {manifest.get('pointerVersion')} "
+                f"> source {pointer_version}"
+            )})
 
     # Phase E: the reminder hooks ship with the plugin — clear any legacy local install
     manifest.pop("python", None)
@@ -809,7 +172,8 @@ def run(project, plugin_root, requested_rules, delegation):
     report["hooks"] = hook_status
     if hook_status == "error":
         report["errors"].append(
-            {"phase": "E", "file": str(project / ".claude" / "settings.json"), "error": "invalid_json"})
+            {"phase": "E", "file": str(project / ".claude" / "settings.json"),
+             "error": "invalid_json"})
 
     manifest["pluginRoot"] = str(plugin_root)
     save_json(manifest_path, manifest)
@@ -857,9 +221,14 @@ def check_versions(plugin_root):
         if rel not in versions:
             problems.append(f"{rel}: missing from versions.json")
         elif versions[rel] != version:
-            problems.append(f"{rel}: versions.json has {versions[rel]}, header has {version}")
+            problems.append(
+                f"{rel}: versions.json has {versions[rel]}, header has {version}"
+            )
         if block_is_tailored(text):
-            problems.append(f"{rel}: shipped source contains a '<!-- tailored -->' marker (project-only marker)")
+            problems.append(
+                f"{rel}: shipped source contains a '<!-- tailored -->' marker "
+                "(project-only marker)"
+            )
     for rel in versions:
         if rel != "pointer" and rel not in seen:
             problems.append(f"{rel}: listed in versions.json but file not found")
@@ -876,683 +245,29 @@ def check_versions(plugin_root):
 def self_test():
     step_rules.self_test()
 
-    generated_plugin = Path(tempfile.mkdtemp())
-    generated_rules = generated_plugin / "rules"
-    generated_rules.mkdir()
-    generated_source = generated_rules / "SAMPLE.md"
-    generated_source.write_text(
-        "# Version\n1\n\n# Sample Rules\n\nshared\n\n"
-        "## Code only\n<!-- steps: code -->\ncode detail\n", encoding="utf-8")
-    save_json(generated_rules / "versions.json", {"pointer": 3, "SAMPLE.md": 1})
-    generated_project = Path(tempfile.mkdtemp())
-    generated_report = run(generated_project, generated_plugin, ["SAMPLE.md"], "neither")
-    expected_step_files = list(step_rules.STEP_FILES.values())
-    assert generated_report["step_files"] == expected_step_files, generated_report
-    complete_rules = read_text(generated_project / RULES_FILE)
-    assert "code detail" in complete_rules and "instructions name one of these step files" in read_text(
-        generated_project / "CLAUDE.md")
-    plan_rules = read_text(generated_project / step_rules.STEP_FILES["plan"])
-    assert "shared" in plan_rules and "code detail" not in plan_rules, plan_rules
-    for filename in expected_step_files:
-        assert parse_block_version(read_text(generated_project / filename)) == 1, filename
+    # Import lazily because tests import apply, which would cycle during startup.
+    from self_test_blocks import self_test as test_blocks
+    from self_test_project_setup import self_test as test_project_setup
+    from self_test_python_split import self_test as test_python_split
+    from self_test_shipped_rules import self_test as test_shipped_rules
 
-    generated_source.write_text(
-        "# Version\n2\n\n# Sample Rules\n\nshared v2\n\n"
-        "## Code only\n<!-- steps: code -->\ncode detail v2\n", encoding="utf-8")
-    save_json(generated_rules / "versions.json", {"pointer": 3, "SAMPLE.md": 2})
-    run(generated_project, generated_plugin, ["SAMPLE.md"], "neither")
-    assert parse_block_version(read_text(generated_project / RULES_FILE)) == 2
-    assert all(parse_block_version(read_text(generated_project / filename)) == 2
-               for filename in expected_step_files)
-
-    empty_project = Path(tempfile.mkdtemp())
-    for filename in expected_step_files:
-        write_text(empty_project / filename, "stale step rules")
-    empty_report = run(empty_project, generated_plugin, [], "neither")
-    assert empty_report["step_files"] == [] and all(
-        not (empty_project / filename).exists() for filename in expected_step_files)
-
-    invalid_plugin = Path(tempfile.mkdtemp())
-    (invalid_plugin / "rules").mkdir()
-    (invalid_plugin / "rules" / "BAD.md").write_text(
-        "# Version\n1\n\n# Bad\n<!-- steps: code, someday -->\n", encoding="utf-8")
-    save_json(invalid_plugin / "rules" / "versions.json", {"BAD.md": 1})
-    try:
-        check_versions(invalid_plugin)
-        raise AssertionError("unknown step marker must fail check-versions")
-    except SystemExit as exc:
-        assert exc.code == 1
-
-    # Delegate wrappers are installed by the shared apply boundary and only
-    # rewritten when their shipped content changes.
-    wrapper_root = Path(tempfile.mkdtemp())
-    wrapper_plugin = Path(tempfile.mkdtemp())
-    wrapper_sources = wrapper_plugin / "rules" / "delegate_setup_files"
-    wrapper_sources.mkdir(parents=True)
-    for name, content in (("coding_rules_delegate.sh", "shell v1\n"),
-                          ("coding_rules_delegate.ps1", "powershell v1\n")):
-        (wrapper_sources / name).write_text(content, encoding="utf-8")
-    assert install_delegate_wrappers(wrapper_root, wrapper_plugin)
-    installed = wrapper_root / "tools" / "coding_rules_delegate.sh"
-    assert read_text(installed) == "shell v1\n"
-    installed_mtime = installed.stat().st_mtime_ns
-    assert not install_delegate_wrappers(wrapper_root, wrapper_plugin)
-    assert installed.stat().st_mtime_ns == installed_mtime
-    (wrapper_sources / "coding_rules_delegate.sh").write_text("shell v2\n", encoding="utf-8")
-    assert install_delegate_wrappers(wrapper_root, wrapper_plugin)
-    assert read_text(installed) == "shell v2\n"
-
-    # parse_source_version_title
-    v, t = parse_source_version_title("# Version\n3\n\ntext\n\n# My Title\n\nbody\n")
-    assert (v, t) == (3, "# My Title"), (v, t)
-
-    # fence-aware block splitting: an embedded example must not start a new block
-    sample = (
-        "# Version\n1\n\n# Real Title\n\nSee example:\n\n"
-        "```markdown\n# Version\n1\n```\n\nmore body\n"
-    )
-    _, blocks = parse_managed(sample)
-    assert len(blocks) == 1, blocks
-    assert blocks[0]["title"] == "# Real Title", blocks[0]
-
-    # process_rules: absent -> update, equal -> unchanged, manifest>source -> conflict
-    src_dir = Path(tempfile.mkdtemp()) / "rules"
-    src_dir.mkdir(parents=True)
-    (src_dir / "FOO.md").write_text("# Version\n2\n\n# Foo Rules\n\nbody\n", encoding="utf-8")
-    blocks, manifest_rules, report = process_rules([], src_dir.parent, ["FOO.md"], {}, {})
-    assert report[0]["status"] == "updated" and manifest_rules["FOO.md"] == 2, report
-    blocks, manifest_rules, report = process_rules(blocks, src_dir.parent, ["FOO.md"], manifest_rules, {})
-    assert report[0]["status"] == "unchanged", report
-    blocks, manifest_rules, report = process_rules(blocks, src_dir.parent, ["FOO.md"], {"FOO.md": 5}, {})
-    assert report[0]["status"] == "conflict", report
-
-    # tolerant version parse: historical blank-line format (regression: bug that
-    # silently overwrote a v4 block with v3 source because int('') threw)
-    assert parse_block_version("# Version\n\n4\n\n# Foo Rules\nbody\n") == 4
-    assert parse_block_version("# Version\n2\n\n# Foo Rules\n") == 2
-    assert parse_block_version("# Version\n\n# Foo Rules\n") is None
-
-    # pre-manifest blocks in the blank-line format: conflict + unchanged paths
-    blank_conflict = {"title": "# Foo Rules", "text": "# Version\n\n4\n\n# Foo Rules\n\nbody\n"}
-    _, _, rep_bc = process_rules([blank_conflict], src_dir.parent, ["FOO.md"], {}, {})
-    assert rep_bc[0]["status"] == "conflict", rep_bc
-    blank_equal = {"title": "# Foo Rules", "text": "# Version\n\n2\n\n# Foo Rules\n\nbody\n"}
-    _, _, rep_be = process_rules([blank_equal], src_dir.parent, ["FOO.md"], {}, {})
-    assert rep_be[0]["status"] == "unchanged", rep_be
-
-    # orphan tail preserved on replace (regression: user-authored sections after
-    # the last managed block were deleted by a block update)
-    stale_with_tail = {"title": "# Foo Rules",
-                       "text": "# Version\n1\n\n# Foo Rules\n\nold body\n\n# My Project Notes\n\nkeep me\n"}
-    blocks_o = [stale_with_tail]
-    blocks_o, _, rep_o = process_rules(blocks_o, src_dir.parent, ["FOO.md"], {"FOO.md": 1}, {})
-    assert rep_o[0]["status"] == "updated" and rep_o[0]["preserved"] == ["# My Project Notes"], rep_o
-    assert len(blocks_o) == 2 and "keep me" in blocks_o[1]["text"], blocks_o
-    assert "My Project Notes" not in blocks_o[0]["text"], blocks_o
-
-    # multi-heading source (PYTHON/FLUTTER style): its own extra heading must
-    # NOT be split out as an orphan
-    (src_dir / "MULTI.md").write_text(
-        "# Version\n1\n\n# Multi Rules\n\nbody\n\n# Essential Extras\n\nmore\n", encoding="utf-8")
-    old_multi = {"title": "# Multi Rules",
-                 "text": "# Version\n0\n\n# Multi Rules\n\nold\n\n# Essential Extras\n\nold more\n"}
-    blocks_m = [old_multi]
-    blocks_m, _, rep_m = process_rules(blocks_m, src_dir.parent, ["MULTI.md"], {}, {})
-    assert rep_m[0]["status"] == "updated" and "preserved" not in rep_m[0], rep_m
-    assert len(blocks_m) == 1 and "old more" not in blocks_m[0]["text"], blocks_m
-
-    # tailored marker: stale -> tailored-stale + untouched; equal -> unchanged
-    tailored_stale = {"title": "# Foo Rules",
-                      "text": "# Version\n1\n\n# Foo Rules\n<!-- tailored -->\n\ncustom body\n"}
-    _, mf_ts, rep_ts = process_rules([tailored_stale], src_dir.parent, ["FOO.md"], {}, {})
-    assert rep_ts[0]["status"] == "tailored-stale", rep_ts
-    assert "custom body" in tailored_stale["text"]
-    assert mf_ts["FOO.md"] == 1, mf_ts
-    tailored_equal = {"title": "# Foo Rules",
-                      "text": "# Version\n2\n\n# Foo Rules\n<!-- tailored -->\n\ncustom body\n"}
-    _, mf_te, rep_te = process_rules([tailored_equal], src_dir.parent, ["FOO.md"], {}, {})
-    assert rep_te[0]["status"] == "unchanged" and mf_te["FOO.md"] == 2, rep_te
-    # a fenced '<!-- tailored -->' (documentation example) does not count
-    assert not block_is_tailored("# Version\n1\n\n# X\n\n```\n<!-- tailored -->\n```\n")
-
-    # process_rules: pre-manifest project -- existing block already at current
-    # version must NOT be rewritten just because the manifest has no entry,
-    # AND (regression for the real bug) it must still land in the manifest
-    # even though its "unchanged" status never touched the on-disk block.
-    preexisting_block = {"title": "# Foo Rules", "text": "# Version\n2\n\n# Foo Rules\n\nbody\n"}
-    _, manifest_premanifest, report_premanifest = process_rules(
-        [preexisting_block], src_dir.parent, ["FOO.md"], {}, {})
-    assert report_premanifest[0]["status"] == "unchanged", report_premanifest
-    assert manifest_premanifest == {"FOO.md": 2}, manifest_premanifest
-
-    # process_rules: a conflicting rule must also stay on record, not vanish
-    _, manifest_conflict, report_conflict = process_rules(
-        [preexisting_block], src_dir.parent, ["FOO.md"], {"FOO.md": 9}, {})
-    assert report_conflict[0]["status"] == "conflict", report_conflict
-    assert manifest_conflict == {"FOO.md": 9}, manifest_conflict
-
-    # reconcile_manifest: a block already in CODING_RULES.md whose rel was
-    # never passed in --rules (real-world cause: an earlier, pre-manifest
-    # install) must still be recorded.
-    other_block = {"title": "# Bar Rules", "text": "# Version\n4\n\n# Bar Rules\n\nbody\n"}
-    reconciled = reconcile_manifest([preexisting_block, other_block],
-                                     {"FOO.md": 2}, {"# Foo Rules": "FOO.md", "# Bar Rules": "BAR.md"})
-    assert reconciled == {"FOO.md": 2, "BAR.md": 4}, reconciled
-    # already-recorded rels and unrecognized titles are left alone
-    reconciled2 = reconcile_manifest([preexisting_block], {"FOO.md": 99}, {"# Foo Rules": "FOO.md"})
-    assert reconciled2 == {"FOO.md": 99}, reconciled2  # not clobbered by the block's own version
-    unrecognized_block = {"title": "# Untracked Section", "text": "# Version\n1\n\n# Untracked Section\n\nbody\n"}
-    reconciled3 = reconcile_manifest([unrecognized_block], {}, {})
-    assert reconciled3 == {}, reconciled3
-
-    # rebuild_headers: keep / explicit / mutual exclusivity, markers in the flow
-    # file only, and a pre-split marker read out of CODING_RULES.md
-    crm_h, flow_h, resolved = rebuild_headers("", "", "codex")
-    assert resolved == "codex"
-    assert "<!-- codex: enabled -->" in flow_h and "<!-- deepseek: disabled -->" in flow_h
-    assert "codex" not in crm_h and crm_h.startswith(MANAGED_COMMENT)
-    crm_h2, flow_h2, resolved2 = rebuild_headers(crm_h, flow_h, "keep")
-    assert resolved2 == "codex"
-    _, flow_h3, resolved3 = rebuild_headers(crm_h2, flow_h2, "deepseek")
-    assert resolved3 == "deepseek"
-    assert "<!-- codex: disabled -->" in flow_h3 and "<!-- deepseek: enabled -->" in flow_h3
-    # pre-split: the marker still sits in CODING_RULES.md and no flow file exists
-    crm_h4, flow_h4, resolved4 = rebuild_headers(
-        MANAGED_COMMENT + "\n<!-- codex: enabled -->\n<!-- deepseek: disabled -->\n", "", "keep")
-    assert resolved4 == "codex", resolved4
-    assert "codex" not in crm_h4 and "<!-- codex: enabled -->" in flow_h4
-    # unrelated header lines survive on their own side
-    crm_h5, _, _ = rebuild_headers("<!-- codex: enabled -->\nProject note.\n", "", "keep")
-    assert "Project note." in crm_h5
-
-    # migrate_flow_blocks: legacy-titled block moves and is retitled; a copy the
-    # flow file already owns is dropped rather than duplicated
-    legacy_block = {"title": LEGACY_FLOW_TITLE,
-                    "text": f"# Version\n24\n\n{LEGACY_FLOW_TITLE}\n\nflow body\n"}
-    quality_block = {"title": "# Foo Rules", "text": "# Version\n2\n\n# Foo Rules\n\nbody\n"}
-    kept, flowed, moved_titles = migrate_flow_blocks([quality_block, legacy_block], [])
-    assert kept == [quality_block], kept
-    assert moved_titles == [FLOW_TITLE] and flowed[0]["title"] == FLOW_TITLE, (moved_titles, flowed)
-    assert FLOW_TITLE in flowed[0]["text"] and LEGACY_FLOW_TITLE not in flowed[0]["text"]
-    dup = {"title": LEGACY_FLOW_TITLE, "text": f"# Version\n24\n\n{LEGACY_FLOW_TITLE}\n\nstale\n"}
-    already = {"title": FLOW_TITLE, "text": f"# Version\n25\n\n{FLOW_TITLE}\n\nnew\n"}
-    kept2, flowed2, moved2 = migrate_flow_blocks([dup], [already])
-    assert kept2 == [] and flowed2 == [already] and moved2 == [], (kept2, flowed2, moved2)
-
-    # apply_pointer: absent -> insert, equal -> unchanged, manifest>source -> conflict
-    text, ver, status = apply_pointer("Some preamble.\n", None, 1)
-    assert status == "updated" and ver == 1 and POINTER_TITLE in text and "Some preamble." in text, text
-    text2, ver2, status2 = apply_pointer(text, ver, 1)
-    assert status2 == "unchanged", status2
-    text3, ver3, status3 = apply_pointer(text, 5, 1)
-    assert status3 == "conflict", status3
-
-    # apply_pointer: pre-manifest project -- existing pointer already at
-    # current version must not be rewritten just because manifest is absent
-    text4, ver4, status4 = apply_pointer(text, None, 1)
-    assert status4 == "unchanged" and ver4 == 1, (status4, ver4)
-
-    # apply_pointer regression: the typical CLAUDE.md is the pointer block
-    # followed by the project's own guidance and no further '# Version' line, so
-    # that guidance parses as part of the pointer block. A version bump must not
-    # delete it.
-    with_body = (
-        POINTER_BLOCK_TEMPLATE.format(version=1).rstrip("\n") + "\n\n"
-        "# CLAUDE.md\n\nProject guidance.\n\n## Build\n\n`make`\n"
-    )
-    text5, ver5, status5 = apply_pointer(with_body, 1, 2)
-    assert status5 == "updated" and ver5 == 2, (status5, ver5)
-    assert "# CLAUDE.md" in text5 and "Project guidance." in text5 and "`make`" in text5, text5
-    assert text5.count(POINTER_TITLE) == 1, text5
-    assert "\n2\n" in text5.split(POINTER_TITLE)[0], text5
-
-    # merge_json_permissions: create, append-missing, idempotent, invalid json
-    tmp = Path(tempfile.mkdtemp())
-    perm_path = tmp / "settings.local.json"
-    changed, err = merge_json_permissions(perm_path, DELEGATE_PERMS)
-    assert changed and err is None
-    data = json.loads(read_text(perm_path))
-    assert data["permissions"]["allow"] == DELEGATE_PERMS
-    changed2, _ = merge_json_permissions(perm_path, DELEGATE_PERMS[:1])
-    assert changed2 is False
-    # both backends share the one wrapper, so both merge the same entries
-    assert DELEGATION_PERMS["codex"] == DELEGATION_PERMS["deepseek"] == DELEGATE_PERMS
-    bad_path = tmp / "bad.json"
-    bad_path.write_text("{not json", encoding="utf-8")
-    _, err2 = merge_json_permissions(bad_path, ["x"])
-    assert err2 == "invalid_json"
-
-    # uninstall_local_hooks: legacy install removed, foreign entries + .off kept
-    legacy = Path(tempfile.mkdtemp())
-    hooks_dir = legacy / ".claude" / "hooks"
-    hooks_dir.mkdir(parents=True)
-    (hooks_dir / "coding-rules-reminder.py").write_text("x", encoding="utf-8")
-    (hooks_dir / "coding-rules-reminder.off").write_text("", encoding="utf-8")
-    other = {"type": "command", "command": "python other.py"}
-    write_text(legacy / ".claude" / "settings.json", json.dumps({
-        "permissions": {"allow": ["Bash(ls:*)"]},
-        "hooks": {
-            "PostToolUse": [{"matcher": "ExitPlanMode", "hooks": [
-                {"type": "command", "command": "python .claude/hooks/coding-rules-reminder.py"}]}],
-            "PreToolUse": [
-                {"matcher": "Edit|Write|MultiEdit", "hooks": [
-                    {"type": "command", "command": "python .claude/hooks/coding-rules-reminder.py"},
-                    dict(other)]},
-                {"matcher": "Bash", "hooks": [dict(other)]},
-            ],
-        },
-    }))
-    assert uninstall_local_hooks(legacy) == "migrated"
-    assert not (hooks_dir / "coding-rules-reminder.py").exists()
-    assert (hooks_dir / "coding-rules-reminder.off").exists()  # user's disable flag survives
-    left = json.loads(read_text(legacy / ".claude" / "settings.json"))
-    assert "PostToolUse" not in left["hooks"]  # emptied event dropped
-    assert left["hooks"]["PreToolUse"] == [
-        {"matcher": "Edit|Write|MultiEdit", "hooks": [other]},
-        {"matcher": "Bash", "hooks": [other]},
-    ]
-    assert left["permissions"]["allow"] == ["Bash(ls:*)"]
-    assert uninstall_local_hooks(legacy) == "plugin"  # second run is a no-op
-    clean = Path(tempfile.mkdtemp())
-    assert uninstall_local_hooks(clean) == "plugin"
-    bad_hooks = Path(tempfile.mkdtemp())
-    write_text(bad_hooks / ".claude" / "settings.json", "[1,")
-    assert uninstall_local_hooks(bad_hooks) == "error"
-
-    # migrate_legacy: recognized block moved, unrecognized kept + reported
-    legacy_plugin = Path(tempfile.mkdtemp())
-    (legacy_plugin / "rules").mkdir()
-    (legacy_plugin / "rules" / "FOO.md").write_text(
-        "# Version\n1\n\n# Foo Rules\n\nnew body\n", encoding="utf-8")
-    title_to_rel = {"# Foo Rules": "FOO.md"}
-    claude_src = "Preamble.\n\n# Version\n1\n\n# Foo Rules\n\nold body\n\n# Version\n1\n\n# Custom Section\n\nkeep me\n"
-    new_text, migrated_map, unrecognized, tailored = migrate_legacy(claude_src, title_to_rel, legacy_plugin)
-    assert migrated_map == {"FOO.md": 1}, migrated_map
-    assert unrecognized == ["# Custom Section"], unrecognized
-    assert "Foo Rules" not in new_text and "Custom Section" in new_text and "Preamble." in new_text
-
-    # migrate_legacy regression: a recognized block whose OWN text runs to EOF
-    # (real-world cause: it's the last '# Version' block, so parse_managed has
-    # no next-block boundary) carries a trailing '##' project section that is
-    # NOT part of the rule source. That section must survive, not be deleted
-    # whole along with the rule content.
-    (legacy_plugin / "rules" / "BAR.md").write_text(
-        "# Version\n1\n\n# Bar Rules\n\nrule body\n", encoding="utf-8")
-    title_to_rel_bar = {"# Bar Rules": "BAR.md"}
-    claude_src_tail = (
-        "Preamble.\n\n"
-        "# Version\n1\n\n# Bar Rules\n\nold rule body\n\n"
-        "## Project Notes\n\nkeep me too\n"
-    )
-    new_text_tail, migrated_tail, _, _ = migrate_legacy(claude_src_tail, title_to_rel_bar, legacy_plugin)
-    assert migrated_tail == {"BAR.md": 1}, migrated_tail
-    assert "old rule body" not in new_text_tail and "Bar Rules" not in new_text_tail, new_text_tail
-    assert "## Project Notes" in new_text_tail and "keep me too" in new_text_tail, new_text_tail
-    assert "Preamble." in new_text_tail, new_text_tail
-
-    # migrate_legacy: source file missing (rel recorded but unreadable) must
-    # keep the whole block rather than silently delete unknown content.
-    title_to_rel_missing = {"# Baz Rules": "BAZ_MISSING.md"}
-    claude_src_missing = "# Version\n1\n\n# Baz Rules\n\nbody\n\n## Something\n\nstuff\n"
-    new_text_missing, migrated_missing, _, _ = migrate_legacy(
-        claude_src_missing, title_to_rel_missing, legacy_plugin)
-    assert migrated_missing == {"BAZ_MISSING.md": 1}, migrated_missing
-    assert "body" in new_text_missing and "## Something" in new_text_missing and "stuff" in new_text_missing
-
-    # end-to-end run(): idempotent re-run, then a version bump only touches one block
-    project = Path(tempfile.mkdtemp())
-    plugin = Path(tempfile.mkdtemp())
-    (plugin / "rules").mkdir()
-    (plugin / "rules" / "FOO.md").write_text("# Version\n1\n\n# Foo Rules\n\nv1 body\n", encoding="utf-8")
-    (plugin / "rules" / "BAR.md").write_text("# Version\n1\n\n# Bar Rules\n\nv1 body\n", encoding="utf-8")
-    save_json(plugin / "rules" / "versions.json", {"pointer": 1, "FOO.md": 1, "BAR.md": 1})
-
-    report1 = run(project, plugin, ["FOO.md", "BAR.md"], "neither")
-    assert all(r["status"] == "updated" for r in report1["rules"]), report1
-    crm_text_1 = read_text(project / "CODING_RULES.md")
-
-    report2 = run(project, plugin, ["FOO.md", "BAR.md"], "keep")
-    assert all(r["status"] == "unchanged" for r in report2["rules"]), report2
-    assert read_text(project / "CODING_RULES.md") == crm_text_1  # idempotent
-
-    (plugin / "rules" / "FOO.md").write_text("# Version\n2\n\n# Foo Rules\n\nv2 body\n", encoding="utf-8")
-    save_json(plugin / "rules" / "versions.json", {"pointer": 1, "FOO.md": 2, "BAR.md": 1})
-    report3 = run(project, plugin, ["FOO.md", "BAR.md"], "keep")
-    statuses = {r["rule"]: r["status"] for r in report3["rules"]}
-    assert statuses == {"FOO.md": "updated", "BAR.md": "unchanged"}, statuses
-    assert "v2 body" in read_text(project / "CODING_RULES.md")
-    assert "v1 body" in read_text(project / "CODING_RULES.md")  # BAR untouched
-
-    manifest = load_json(project / "coding-rules.json", {})
-    assert manifest["rules"] == {"FOO.md": 2, "BAR.md": 1}, manifest
-
-    # Reproduce the real-world bug: a project with CODING_RULES.md already
-    # holding several blocks and no manifest yet, apply.py run with a request
-    # list that only names ONE of those blocks. All must still end up recorded.
-    project2 = Path(tempfile.mkdtemp())
-    (project2 / "CODING_RULES.md").write_text(
-        "<!-- Managed by /coding-rules:apply — do not edit rule blocks by hand -->\n\n"
-        "# Version\n3\n\n# Foo Rules\n\nbody\n\n"
-        "# Version\n1\n\n# Bar Rules\n\nbody\n\n"
-        "# Version\n5\n\n# Baz Rules\n\nbody\n",
-        encoding="utf-8",
-    )
-    (plugin / "rules" / "BAZ.md").write_text("# Version\n5\n\n# Baz Rules\n\nbody\n", encoding="utf-8")
-    save_json(plugin / "rules" / "versions.json",
-              {"pointer": 1, "FOO.md": 2, "BAR.md": 1, "BAZ.md": 5})
-    report_real = run(project2, plugin, ["BAZ.md"], "neither")
-    manifest_real = load_json(project2 / "coding-rules.json", {})
-    assert manifest_real["rules"] == {"FOO.md": 3, "BAR.md": 1, "BAZ.md": 5}, manifest_real
-
-    # The rules/flow split: a pre-split project has the flow block inlined in
-    # CODING_RULES.md and the codex marker in its header. Both must move to
-    # IMPLEMENTATION_FLOW.md, everything else must stay put, and a second run
-    # must report `unchanged` (i.e. the manifest rel rename took).
-    split_plugin = Path(tempfile.mkdtemp())
-    (split_plugin / "rules").mkdir()
-    split_wrappers = split_plugin / "rules" / "delegate_setup_files"
-    split_wrappers.mkdir()
-    (split_wrappers / "coding_rules_delegate.sh").write_text("shell\n", encoding="utf-8")
-    (split_wrappers / "coding_rules_delegate.ps1").write_text("powershell\n", encoding="utf-8")
-    (split_plugin / "rules" / "FOO.md").write_text(
-        "# Version\n1\n\n# Foo Rules\n\nquality body\n", encoding="utf-8")
-    (split_plugin / "rules" / FLOW_FILE).write_text(
-        f"# Version\n25\n\n{FLOW_TITLE}\n\nflow body v25\n", encoding="utf-8")
-    save_json(split_plugin / "rules" / "versions.json",
-              {"pointer": 2, "FOO.md": 1, FLOW_FILE: 25})
-
-    split_project = Path(tempfile.mkdtemp())
-    write_text(split_project / RULES_FILE,
-               MANAGED_COMMENT + "\n<!-- codex: enabled -->\n<!-- deepseek: disabled -->\n\n"
-               "# Version\n1\n\n# Foo Rules\n\nquality body\n\n"
-               f"# Version\n24\n\n{LEGACY_FLOW_TITLE}\n\nflow body v24\n")
-    save_json(split_project / "coding-rules.json",
-              {"rules": {"FOO.md": 1, "AI_RULES.md": 24}, "delegation": "codex", "pointerVersion": 1})
-
-    split_report = run(split_project, split_plugin, ["FOO.md", "AI_RULES.md"], "keep")
-    split_statuses = {r["rule"]: r["status"] for r in split_report["rules"]}
-    assert split_statuses == {"FOO.md": "unchanged", FLOW_FILE: "updated"}, split_statuses
-    assert split_report["delegation"] == "codex", split_report
-    crm_after = read_text(split_project / RULES_FILE)
-    flow_after = read_text(split_project / FLOW_FILE)
-    assert "quality body" in crm_after, crm_after
-    assert "Workflow Rules" not in crm_after and "flow body" not in crm_after, crm_after
-    assert "codex" not in crm_after, crm_after
-    assert "<!-- codex: enabled -->" in flow_after, flow_after
-    assert "flow body v25" in flow_after and "flow body v24" not in flow_after, flow_after
-    assert "Foo Rules" not in flow_after, flow_after
-    split_manifest = load_json(split_project / "coding-rules.json", {})
-    assert split_manifest["rules"] == {"FOO.md": 1, FLOW_FILE: 25}, split_manifest
-    assert "IMPLEMENTATION_FLOW.md" in read_text(split_project / "CLAUDE.md")
-
-    split_report2 = run(split_project, split_plugin, ["FOO.md", FLOW_FILE], "keep")
-    assert all(r["status"] == "unchanged" for r in split_report2["rules"]), split_report2
-    assert split_report2["pointer"] == "unchanged", split_report2
-    assert read_text(split_project / RULES_FILE) == crm_after
-    assert read_text(split_project / FLOW_FILE) == flow_after
-
-    # Python v6 inline sections move to optional blocks on the first v7 apply.
-    for desktop in (True, False):
-        split_plugin = Path(tempfile.mkdtemp())
-        split_rules = split_plugin / "rules"
-        (split_rules / "python").mkdir(parents=True)
-        old_python = "# Version\n6\n\n# Python Rules (uv)\n\n## GUI Framework\n\nold GUI\n\n# 8 Essential Additional Rules (must-have)\n\nold essentials\n"
-        new_python = "# Version\n7\n\n# Python Rules (uv)\n\n# Essential Additional Rules (must-have)\n\nnew essentials\n"
-        (split_rules / "PYTHON_RULES.md").write_text(old_python, encoding="utf-8")
-        save_json(split_rules / "versions.json", {"pointer": 1, "PYTHON_RULES.md": 6})
-        split_project = Path(tempfile.mkdtemp())
-        if desktop:
-            (split_project / "pyproject.toml").write_text('dependencies = ["PySide6>=6"]\n', encoding="utf-8")
-        run(split_project, split_plugin, ["PYTHON_RULES.md"], "neither")
-        with (split_project / RULES_FILE).open("a", encoding="utf-8") as f:
-            f.write("\n# Project Notes\n\nkeep this\n")
-        (split_rules / "PYTHON_RULES.md").write_text(new_python, encoding="utf-8")
-        (split_rules / "python" / "GUI.md").write_text("# Version\n1\n\n# Python Desktop GUI (PySide6)\n\n## GUI Framework\n\nGUI rules\n", encoding="utf-8")
-        (split_rules / "python" / "DATABASE.md").write_text("# Version\n1\n\n# Python Database Access (SQLAlchemy)\n\nDB rules\n", encoding="utf-8")
-        save_json(split_rules / "versions.json", {"pointer": 1, "PYTHON_RULES.md": 7,
-                  "python/GUI.md": 1, "python/DATABASE.md": 1})
-        split_report = run(split_project, split_plugin, ["PYTHON_RULES.md"], "keep")
-        assert split_report["split_kept"] == (["python/GUI.md"] if desktop else []), split_report
-        result = read_text(split_project / RULES_FILE)
-        assert ("GUI rules" in result) == desktop and "DB rules" not in result, result
-        assert "old GUI" not in result and result.count("# Essential Additional Rules") == 1, result
-        assert "# Project Notes" in result and "keep this" in result, result
-        assert load_json(split_project / "coding-rules.json", {})["rules"] == (
-            {"PYTHON_RULES.md": 7, "python/GUI.md": 1} if desktop else {"PYTHON_RULES.md": 7})
-        again = run(split_project, split_plugin, ["PYTHON_RULES.md"], "keep")
-        assert again["split_kept"] == [] and all(x["status"] == "unchanged" for x in again["rules"]), again
-        assert read_text(split_project / RULES_FILE) == result
-
-    # Flutter v13 app-only rules move into a supplement on the v14 apply.
-    # A demo application under example/ must not classify the package as an app.
-    for app in (True, False):
-        flutter_plugin = Path(tempfile.mkdtemp())
-        flutter_rules = flutter_plugin / "rules"
-        (flutter_rules / "flutter").mkdir(parents=True)
-        old_flutter = (
-            "# Version\n13\n\n# Flutter Rules (FVM + Mobile)\n\n"
-            "general Flutter rules\n\n## Localization\n\nold i18n rules\n")
-        new_flutter = (
-            "# Version\n14\n\n# Flutter Rules (FVM + Mobile)\n\n"
-            "general Flutter rules\n")
-        (flutter_rules / "FLUTTER_RULES.md").write_text(old_flutter, encoding="utf-8")
-        save_json(flutter_rules / "versions.json", {"pointer": 1, "FLUTTER_RULES.md": 13})
-
-        flutter_project = Path(tempfile.mkdtemp())
-        if app:
-            (flutter_project / "lib").mkdir()
-            (flutter_project / "lib" / "main.dart").write_text("void main() {}\n", encoding="utf-8")
-        else:
-            (flutter_project / "pubspec.yaml").write_text("name: sample_plugin\n", encoding="utf-8")
-            (flutter_project / "example" / "lib").mkdir(parents=True)
-            (flutter_project / "example" / "lib" / "main.dart").write_text(
-                "void main() {}\n", encoding="utf-8")
-        run(flutter_project, flutter_plugin, ["FLUTTER_RULES.md"], "neither")
-
-        (flutter_rules / "FLUTTER_RULES.md").write_text(new_flutter, encoding="utf-8")
-        (flutter_rules / "flutter" / "APP.md").write_text(
-            "# Version\n1\n\n# Flutter App Rules\n\nnew i18n rules\n", encoding="utf-8")
-        save_json(flutter_rules / "versions.json", {
-            "pointer": 1, "FLUTTER_RULES.md": 14, "flutter/APP.md": 1})
-
-        flutter_report = run(flutter_project, flutter_plugin, ["FLUTTER_RULES.md"], "keep")
-        assert flutter_report["split_kept"] == (["flutter/APP.md"] if app else []), flutter_report
-        result = read_text(flutter_project / RULES_FILE)
-        assert result.count("new i18n rules") == (1 if app else 0), result
-        assert "old i18n rules" not in result and "general Flutter rules" in result, result
-        expected_rules = ({"FLUTTER_RULES.md": 14, "flutter/APP.md": 1} if app
-                          else {"FLUTTER_RULES.md": 14})
-        assert load_json(flutter_project / "coding-rules.json", {})["rules"] == expected_rules
-        again = run(flutter_project, flutter_plugin, ["FLUTTER_RULES.md"], "keep")
-        assert again["split_kept"] == [] and all(
-            item["status"] == "unchanged" for item in again["rules"]), again
-        assert read_text(flutter_project / RULES_FILE) == result
-
-    # C# v1 rules move the WinForms sections to an optional block on the v2 apply.
-    for desktop in (True, False):
-        csharp_plugin = Path(tempfile.mkdtemp())
-        csharp_rules = csharp_plugin / "rules"
-        (csharp_rules / "csharp").mkdir(parents=True)
-        old_csharp = ("# Version\n1\n\n# C# Rules (.NET Framework / Windows Forms)\n\n"
-                      "general rules\n\n## Tray Icon Setup\n\nold tray rules\n")
-        new_csharp = "# Version\n2\n\n# C# Rules (.NET)\n\ngeneral rules\n"
-        (csharp_rules / "CSHARP_RULES.md").write_text(old_csharp, encoding="utf-8")
-        save_json(csharp_rules / "versions.json", {"pointer": 1, "CSHARP_RULES.md": 1})
-
-        csharp_project = Path(tempfile.mkdtemp())
-        app_dir = csharp_project / "MyApp"
-        app_dir.mkdir()
-        project_text = ("<Project><ItemGroup><Reference Include=\"System.Windows.Forms\" />"
-                        "</ItemGroup></Project>" if desktop else
-                        "<Project><PropertyGroup><OutputType>Exe</OutputType></PropertyGroup></Project>")
-        (app_dir / "MyApp.csproj").write_text(project_text, encoding="utf-8")
-        run(csharp_project, csharp_plugin, ["CSHARP_RULES.md"], "neither")
-
-        (csharp_rules / "CSHARP_RULES.md").write_text(new_csharp, encoding="utf-8")
-        (csharp_rules / "csharp" / "WINFORMS.md").write_text(
-            "# Version\n1\n\n# C# Windows Forms Desktop Rules\n\nnew tray rules\n", encoding="utf-8")
-        save_json(csharp_rules / "versions.json", {
-            "pointer": 1, "CSHARP_RULES.md": 2, "csharp/WINFORMS.md": 1})
-
-        split_report = run(csharp_project, csharp_plugin, ["CSHARP_RULES.md"], "keep")
-        assert split_report["split_kept"] == (["csharp/WINFORMS.md"] if desktop else []), split_report
-        result = read_text(csharp_project / RULES_FILE)
-        assert result.count("# C# Rules") == 1 and "# C# Rules (.NET)" in result, result
-        assert "old tray rules" not in result and ("new tray rules" in result) == desktop, result
-        assert load_json(csharp_project / "coding-rules.json", {})["rules"] == (
-            {"CSHARP_RULES.md": 2, "csharp/WINFORMS.md": 1} if desktop
-            else {"CSHARP_RULES.md": 2})
-        result_before_second_run = result
-        again = run(csharp_project, csharp_plugin, ["CSHARP_RULES.md"], "keep")
-        assert again["split_kept"] == [] and all(
-            item["status"] == "unchanged" for item in again["rules"]), again
-        assert read_text(csharp_project / RULES_FILE) == result_before_second_run
-
-    marker_project = Path(tempfile.mkdtemp())
-    (marker_project / "MyApp").mkdir()
-    (marker_project / "MyApp" / "MyApp.csproj").write_text(
-        "<Project><PropertyGroup><UseWindowsForms>true</UseWindowsForms></PropertyGroup></Project>",
-        encoding="utf-8")
-    assert project_uses(marker_project, ("system.windows.forms", "usewindowsforms"))
-    (marker_project / "MyApp" / "MyApp.csproj").write_text(
-        "<Project><ItemGroup><Reference Include=\"System.Windows.Forms\" /></ItemGroup></Project>",
-        encoding="utf-8")
-    assert project_uses(marker_project, ("system.windows.forms", "usewindowsforms"))
-    assert not project_uses(Path(tempfile.mkdtemp()),
-                            ("system.windows.forms", "usewindowsforms"))
-
-    marker_project = Path(tempfile.mkdtemp())
-    (marker_project / "pyproject.toml").write_text('dependencies = ["PySide6>=6"]\n', encoding="utf-8")
-    assert project_uses(marker_project, ("pyside6",))
-    assert not project_uses(marker_project, ("sqlalchemy",))
-    (marker_project / "installer").mkdir()
-    assert project_uses(marker_project, ("installer/",))
-    assert not project_uses(Path(tempfile.mkdtemp()), ("installer/", "pyside6"))
-
-    fresh = Path(tempfile.mkdtemp())
-    (fresh / "pyproject.toml").write_text('dependencies = ["pyside6"]\n', encoding="utf-8")
-    fresh_report = run(fresh, split_plugin, ["PYTHON_RULES.md"], "neither")
-    assert fresh_report["split_kept"] == [], fresh_report
-
-    tailored_project = Path(tempfile.mkdtemp())
-    write_text(tailored_project / RULES_FILE, MANAGED_COMMENT + "\n\n" +
-               old_python.replace("# Python Rules (uv)\n", "# Python Rules (uv)\n<!-- tailored -->\n"))
-    (tailored_project / "pyproject.toml").write_text('dependencies = ["pyside6"]\n', encoding="utf-8")
-    save_json(tailored_project / "coding-rules.json", {"rules": {"PYTHON_RULES.md": 6}})
-    tailored_report = run(tailored_project, split_plugin, ["PYTHON_RULES.md"], "neither")
-    assert tailored_report["split_kept"] == []
-    assert tailored_report["rules"][0]["status"] == "tailored-stale"
-    assert read_text(tailored_project / RULES_FILE).endswith(old_python.replace(
-        "# Python Rules (uv)\n", "# Python Rules (uv)\n<!-- tailored -->\n"))
-
-    legacy_project = Path(tempfile.mkdtemp())
-    (legacy_project / "pyproject.toml").write_text('dependencies = ["pyside6"]\n', encoding="utf-8")
-    write_text(legacy_project / "CLAUDE.md", old_python + "\n# Project Notes\n\nkeep me\n")
-    legacy_report = run(legacy_project, split_plugin, ["PYTHON_RULES.md"], "neither")
-    assert legacy_report["split_kept"] == ["python/GUI.md"], legacy_report
-    assert "old GUI" not in read_text(legacy_project / "CLAUDE.md")
-    assert "# Project Notes\n\nkeep me" in read_text(legacy_project / "CLAUDE.md")
-    assert "GUI rules" in read_text(legacy_project / RULES_FILE)
-
-    tailored_legacy = Path(tempfile.mkdtemp())
-    tailored_text = old_python.replace("# Python Rules (uv)\n", "# Python Rules (uv)\n<!-- tailored -->\n")
-    write_text(tailored_legacy / "CLAUDE.md", tailored_text)
-    tailored_legacy_report = run(tailored_legacy, split_plugin, ["PYTHON_RULES.md"], "neither")
-    assert tailored_legacy_report["split_kept"] == []
-    assert any("Tailored legacy block" in d["detail"] for d in tailored_legacy_report["needs_user_decision"])
-    assert tailored_text in read_text(tailored_legacy / "CLAUDE.md")
-
-    setup_plugin = Path(tempfile.mkdtemp())
-    setup_dir = setup_plugin / "rules" / "example_setup_files"
-    setup_dir.mkdir(parents=True)
-    (setup_dir / "SETUP.md").write_text("# Version\n1\n\n# Setup\n", encoding="utf-8")
-    save_json(setup_plugin / "rules" / "versions.json", {"example_setup_files/SETUP.md": 1})
-    check_versions(setup_plugin)
-    for indexed in ({}, {"example_setup_files/SETUP.md": 2}):
-        save_json(setup_plugin / "rules" / "versions.json", indexed)
-        try:
-            check_versions(setup_plugin)
-            raise AssertionError("setup version mismatch was accepted")
-        except SystemExit as exc:
-            assert exc.code == 1
-
-    shipped_root = Path(__file__).resolve().parents[2]
-    shipped_versions = load_json(shipped_root / "rules" / "versions.json", {})
-    assert "CPP_RULES.md" in shipped_versions
-    assert "CPP_RULES.md" in read_text(shipped_root / "skills" / "apply" / "SKILL.md")
-
-    delta_project = Path(tempfile.mkdtemp())
-    first_delta = run(delta_project, shipped_root, ["COMMON_RULES.md"], "neither")
-    assert any(item["rule"] == "COMMON_RULES.md" and item["status"] == "updated"
-               for item in first_delta["rules"]), first_delta
-    second_delta = run(delta_project, shipped_root, ["COMMON_RULES.md", "CPP_RULES.md"], "neither")
-    delta_statuses = {item["rule"]: item["status"] for item in second_delta["rules"]}
-    assert delta_statuses["CPP_RULES.md"] == "updated", second_delta
-    assert delta_statuses["COMMON_RULES.md"] == "unchanged", second_delta
-    delta_manifest = load_json(delta_project / "coding-rules.json", {})
-    assert "CPP_RULES.md" in delta_manifest["rules"], delta_manifest
-    assert "# C++ Rules" in read_text(delta_project / "CODING_RULES.md")
-
-    runner_flags = {
-        "flutter_setup_files/tools/run_tests.bat": "flutter test --reporter expanded",
-        "kotlin_setup_files/tools/run_tests.bat": "testDebugUnitTest",
-        "kotlin_setup_files/tools/run_analysis.bat": "lintKotlin",
-        "python_setup_files/tools/run_tests.bat": "pytest tests/ -v",
-        "python_setup_files/tools/run_integration_tests.bat": "pytest tests/integration -v",
-        "php_setup_files/tools/tests.bat": "--debug",
-        "php_setup_files/tools/tests-php.bat": "--debug",
-        "wordpress_setup_files/tools/run_tests.bat": "--debug",
-    }
-    for rel, flag in runner_flags.items():
-        runner = read_text(shipped_root / "rules" / rel)
-        active_lines = [line.strip().lower() for line in runner.splitlines()
-                        if flag.lower() in line.lower()
-                        and not line.lstrip().lower().startswith(("rem", "::", "echo"))]
-        assert active_lines, f"{rel} is missing {flag}"
-        assert not any(re.search(r"(?<![2])>(?!&)", line) for line in active_lines), \
-            f"{rel} redirects runner output"
-        if rel in ("php_setup_files/tools/tests-php.bat", "wordpress_setup_files/tools/run_tests.bat"):
-            plain_phpunit = [line.strip().lower() for line in runner.splitlines()
-                             if "phpunit" in line.lower() and "--colors" in line.lower()
-                             and "--debug" not in line.lower()
-                             and not line.lstrip().lower().startswith(("rem", "::", "echo"))]
-            assert not plain_phpunit, f"{rel} runs PHPUnit without --debug: {plain_phpunit}"
-    for rel in SPLITS["PYTHON_RULES.md"][1]:
-        assert rel in shipped_versions and (shipped_root / "rules" / rel).exists(), rel
-    for rel in SPLITS["FLUTTER_RULES.md"][1]:
-        assert rel in shipped_versions and (shipped_root / "rules" / rel).exists(), rel
-    flutter_base = read_text(shipped_root / "rules" / "FLUTTER_RULES.md")
-    assert all(term not in flutter_base for term in (
-        "## Localization", "## 7) State Management (Cubit)",
-        "## 8) HTTP Communication (Dio)", "## App Icons",
-        "## 6) Required Batch Files", "install.bat"))
-    assert all(term in flutter_base for term in (
-        "## Mixins", "## Pin Android Dependencies", "## 5) Tests are mandatory",
-        "--reporter expanded"))
-    lean = read_text(shipped_root / "rules" / "PYTHON_RULES.md")
-    assert all(heading not in lean for heading in ("## Template Engine", "## GUI Framework", "## Localization",
-        "## Jinja2 Integration", "## Release Workflow", "## Windows Installer (NSIS)",
-        "## 6) Database access uses SQLAlchemy ORM"))
-    assert all(term in lean for term in ("## CLI Menus", "## Project Setup Scripts", "MagicMock",
-        "## Structured Logging", "## Self-Describing Classes"))
-    graph = read_text(shipped_root / "rules" / "implementation_flow_addons" / "graphify.md")
-    assert "One-time setup" not in graph and "Rules to paste" not in graph
-    assert "## One-time setup" in read_text(shipped_root / "rules" / "graphify_setup_files" / "SETUP.md")
-
-    pin_terms = ("releaseRuntimeClasspath", "resolutionStrategy.force")
-    for pinned in (shipped_root / "rules" / "FLUTTER_RULES.md", shipped_root / "skills" / "enforce" / "SKILL.md"):
-        assert all(term in read_text(pinned) for term in pin_terms), pinned
-
+    for test in (
+        test_blocks, test_project_setup, test_python_split, test_shipped_rules
+    ):
+        test()
     print("self-test OK")
-
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--project")
     parser.add_argument("--plugin-root")
     parser.add_argument("--rules", default="")
-    parser.add_argument("--delegation", default="keep", choices=["codex", "deepseek", "neither", "keep"])
-    parser.add_argument("--python", default="python", help=argparse.SUPPRESS)  # accepted, ignored: hooks ship with the plugin now
+    parser.add_argument(
+        "--delegation", default="keep", choices=["codex", "deepseek", "neither", "keep"]
+    )
+    parser.add_argument(
+        "--python", default="python", help=argparse.SUPPRESS
+    )  # accepted, ignored: hooks ship with the plugin now
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--self-test", action="store_true")
     parser.add_argument("--check-versions", action="store_true")
@@ -1562,7 +277,11 @@ def main(argv=None):
         self_test()
         return
     if args.check_versions:
-        plugin_root = Path(args.plugin_root) if args.plugin_root else Path(__file__).resolve().parents[2]
+        plugin_root = (
+            Path(args.plugin_root)
+            if args.plugin_root
+            else Path(__file__).resolve().parents[2]
+        )
         check_versions(plugin_root)
         return
     if not args.project or not args.plugin_root:

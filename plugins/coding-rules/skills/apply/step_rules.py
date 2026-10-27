@@ -30,7 +30,9 @@ def _parse_step_marker(marker: str) -> set[str]:
     return steps
 
 
-def _step_marker(lines: list[str], heading_index: int) -> tuple[set[str] | None, int | None]:
+def _step_marker(
+    lines: list[str], heading_index: int
+) -> tuple[set[str] | None, int | None]:
     """Return a heading's marker and its line index, skipping blank lines."""
     marker_index = heading_index + 1
     while marker_index < len(lines) and not lines[marker_index].strip():
@@ -163,7 +165,10 @@ review detail
 
     whole = "# Version\n1\n\n# Hidden\n<!-- steps: code -->\nsecret\n"
     assert filter_block(whole, "plan") == ""
-    assert step_blocks([{"title": "# Hidden", "text": whole}])["CODING_RULES_PLAN.md"] == []
+    assert (
+        step_blocks([{"title": "# Hidden", "text": whole}])["CODING_RULES_PLAN.md"]
+        == []
+    )
     try:
         check_markers("# X\n<!-- steps: code, typo -->\n")
     except ValueError:
