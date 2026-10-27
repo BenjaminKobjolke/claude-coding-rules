@@ -1,70 +1,19 @@
 """Update every git repository that already has a coding-rules manifest."""
 
 import argparse
-import contextlib
-import io
 import json
-import os
-import shutil
 import sys
-import tempfile
 from pathlib import Path
+
+from project_discovery import (
+    SettingsError, find_repos, load_settings,
+)
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "apply"))
 import apply  # noqa: E402
 
-NOISE_DIRS = {"node_modules", ".venv", "venv", "__pycache__", ".mypy_cache", ".ruff_cache"}
-SETTINGS_TEMPLATE = Path(__file__).resolve().parents[2] / "settings.example.json"
 GRAPHIFY = "implementation_flow_addons/graphify.md"
 GRAPHIFY_FLOW = "implementation_flow_addons/graphify_flow.md"
-
-
-class SettingsError(ValueError):
-    pass
-
-
-def load_settings(path, warn=print):
-    if not path.exists():
-        example = path.with_name("settings.example.json")
-        example.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(SETTINGS_TEMPLATE, example)
-        raise SettingsError(f"Settings not found. Copy {example} to settings.json and set your folders.")
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        raise SettingsError(f"Cannot read {path}: {exc}") from exc
-
-    folders = data.get("folders")
-    prefixes = data.get("ignore_prefixes", [])
-    if not isinstance(folders, list) or not folders or not all(isinstance(x, str) and x for x in folders):
-        raise SettingsError("'folders' must be a non-empty list of strings.")
-    if not isinstance(prefixes, list) or not all(isinstance(x, str) and x for x in prefixes):
-        raise SettingsError("'ignore_prefixes' entries must be non-empty strings.")
-
-    existing = []
-    for folder in map(Path, folders):
-        if folder.is_dir():
-            existing.append(folder)
-        else:
-            warn(f"warning: folder does not exist, skipping: {folder}")
-    if not existing:
-        raise SettingsError("None of the configured folders exist.")
-    return existing, tuple(prefixes)
-
-
-def find_repos(root, ignore_prefixes=()):
-    """Yield git repos without descending into repos or ignored directories."""
-    for dirpath, dirnames, _files in os.walk(root):
-        current = Path(dirpath)
-        if (current / ".git").exists():
-            yield current
-            dirnames[:] = []
-            continue
-        dirnames[:] = [
-            name for name in dirnames
-            if name not in NOISE_DIRS and not name.startswith(ignore_prefixes)
-        ]
-
 
 def mapped_rules(manifest):
     rules = manifest.get("rules", {})
@@ -99,7 +48,9 @@ def classify_manifest(manifest, versions):
     elif applied_pointer < current_pointer:
         outdated.append(("pointer", applied_pointer, current_pointer))
     elif applied_pointer > current_pointer:
-        decisions.append(f"pointer is ahead of source ({applied_pointer} > {current_pointer})")
+        decisions.append(
+            f"pointer is ahead of source ({applied_pointer} > {current_pointer})"
+        )
     return outdated, decisions
 
 
@@ -134,10 +85,13 @@ def _report_items(items):
     return flattened
 
 
-def check_project(project, plugin_root, versions, dry_run=False, explicit=False, report_path=None):
+def check_project(
+    project, plugin_root, versions, dry_run=False, explicit=False, report_path=None
+):
     """Inspect or update one project and return its normalized report entry."""
     entry = {
-        "path": str(project) if report_path is None else report_path, "status": "", "outdated": [],
+        "path": str(project) if report_path is None else report_path,
+        "status": "", "outdated": [],
         "decisions": [], "errors": [], "kept": [], "_using": False,
     }
     if explicit and not project.is_dir():
@@ -154,7 +108,8 @@ def check_project(project, plugin_root, versions, dry_run=False, explicit=False,
         entry["status"] = "no_manifest"
         entry["rules_file"] = rules_file
         entry["_message"] = (
-            f"no manifest: {project} — run /coding-rules:apply there once" if rules_file else None
+            (f"no manifest: {project} — run /coding-rules:apply there once"
+             if rules_file else None)
         )
         return entry
 
@@ -210,7 +165,9 @@ def run_projects(projects, plugin_root, dry_run=False, as_json=False, label_coun
     entries = []
     for index, project in enumerate(projects):
         report_path = report_paths[index] if report_paths is not None else None
-        entry = check_project(project, plugin_root, versions, dry_run, explicit, report_path)
+        entry = check_project(
+            project, plugin_root, versions, dry_run, explicit, report_path
+        )
         if entry is not None:
             entries.append(entry)
 
@@ -230,7 +187,10 @@ def run_projects(projects, plugin_root, dry_run=False, as_json=False, label_coun
             {key: value for key, value in entry.items() if not key.startswith("_")}
             for entry in entries
         ]
-        print(json.dumps({"dry_run": dry_run, "projects": clean_entries, "totals": totals}, indent=2))
+        print(json.dumps(
+            {"dry_run": dry_run, "projects": clean_entries, "totals": totals},
+            indent=2,
+        ))
     else:
         for entry in entries:
             message = entry.get("_message")
@@ -245,15 +205,23 @@ def run_projects(projects, plugin_root, dry_run=False, as_json=False, label_coun
 
 
 def scan_projects(folders, ignore_prefixes, plugin_root, dry_run=False, as_json=False):
-    repos = sorted({repo for folder in folders for repo in find_repos(folder, ignore_prefixes)})
+    repos = sorted(
+        {repo for folder in folders for repo in find_repos(folder, ignore_prefixes)}
+    )
     return run_projects(repos, plugin_root, dry_run, as_json, len(repos))
 
 
 def main(argv=None, plugin_root=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--settings", type=Path, default=Path.home() / ".coding-rules" / "settings.json")
-    parser.add_argument("--project", action="append", help="Project folder to update (repeatable)")
-    parser.add_argument("--json", action="store_true", help="Print a machine-readable JSON report")
+    parser.add_argument(
+        "--settings", type=Path, default=Path.home() / ".coding-rules" / "settings.json"
+    )
+    parser.add_argument(
+        "--project", action="append", help="Project folder to update (repeatable)"
+    )
+    parser.add_argument(
+        "--json", action="store_true", help="Print a machine-readable JSON report"
+    )
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--self-test", action="store_true")
     args = parser.parse_args(argv)
@@ -273,7 +241,9 @@ def main(argv=None, plugin_root=None):
             args.json, len(projects), explicit=True, report_paths=project_paths,
         )
     try:
-        warn = print if not args.json else lambda message: print(message, file=sys.stderr)
+        warn = (
+            print if not args.json else lambda message: print(message, file=sys.stderr)
+        )
         folders, prefixes = load_settings(args.settings, warn=warn)
     except SettingsError as exc:
         if args.json:
@@ -282,183 +252,16 @@ def main(argv=None, plugin_root=None):
             print(f"error: {exc}")
         return 1
     return scan_projects(
-        folders, prefixes, plugin_root or Path(__file__).resolve().parents[2], args.dry_run, args.json,
+        folders, prefixes, plugin_root or Path(__file__).resolve().parents[2],
+        args.dry_run, args.json,
     )
 
 
 def self_test():
-    temp = Path(tempfile.mkdtemp())
-    plugin = temp / "plugin"
-    rules = plugin / "rules"
-    rules.mkdir(parents=True)
-    source = rules / "FOO.md"
-    source.write_text("# Version\n1\n\n# Foo Rules\n\nv1\n", encoding="utf-8")
-    apply.save_json(rules / "versions.json", {"pointer": 1, "FOO.md": 1})
+    # Import lazily because tests import update_all, avoiding a startup cycle.
+    from update_all_self_test import self_test as run_self_test
 
-    root = temp / "repos"
-    root.mkdir()
-
-    def repo(name):
-        project = root / name
-        (project / ".git").mkdir(parents=True)
-        return project
-
-    stale = repo("stale")
-    apply.run(stale, plugin, ["FOO.md"], "neither")
-    (stale / "nested" / ".git").mkdir(parents=True)
-
-    source.write_text("# Version\n2\n\n# Foo Rules\n\nv2\n", encoding="utf-8")
-    apply.save_json(rules / "versions.json", {"pointer": 1, "FOO.md": 2})
-    current = repo("current")
-    apply.run(current, plugin, ["FOO.md"], "neither")
-    current_before = apply.read_text(current / apply.RULES_FILE)
-
-    ignored = root / "_old_x" / "ignored"
-    (ignored / ".git").mkdir(parents=True)
-    no_manifest = repo("no-manifest")
-    (no_manifest / apply.RULES_FILE).write_text("old install\n", encoding="utf-8")
-
-    stale_before = apply.read_text(stale / apply.RULES_FILE)
-    output = io.StringIO()
-    with contextlib.redirect_stdout(output):
-        assert scan_projects([root], ("_old_",), plugin, dry_run=True) == 0
-    assert apply.read_text(stale / apply.RULES_FILE) == stale_before
-    assert "would update:" in output.getvalue() and "no manifest:" in output.getvalue()
-    assert "3 scanned" in output.getvalue(), output.getvalue()
-
-    with contextlib.redirect_stdout(io.StringIO()):
-        assert scan_projects([root], ("_old_",), plugin) == 0
-    assert apply.load_json(stale / "coding-rules.json", {})["rules"]["FOO.md"] == 2
-    assert apply.read_text(current / apply.RULES_FILE) == current_before
-    assert (stale / "CODING_RULES_PLAN.md").exists()
-
-    pointer_stale = temp / "pointer-stale"
-    pointer_stale.mkdir()
-    (pointer_stale / ".git").mkdir()
-    apply.run(pointer_stale, plugin, ["FOO.md"], "neither")
-    pointer_manifest = apply.load_json(pointer_stale / "coding-rules.json", {})
-    pointer_manifest["pointerVersion"] = 0
-    apply.save_json(pointer_stale / "coding-rules.json", pointer_manifest)
-    for filename in ("CODING_RULES_PLAN.md", "CODING_RULES_REVIEW.md", "CODING_RULES_CODE.md"):
-        (pointer_stale / filename).unlink()
-    pointer_entry = check_project(pointer_stale, plugin, apply.load_json(rules / "versions.json", {}))
-    assert pointer_entry["status"] == "updated" and pointer_entry["outdated"] == [
-        {"rule": "pointer", "applied": 0, "current": 1},
-    ], pointer_entry
-    assert (pointer_stale / "CODING_RULES_PLAN.md").exists()
-
-    # JSON scan mode keeps the same repo selection, including its scanned count.
-    output = io.StringIO()
-    with contextlib.redirect_stdout(output):
-        assert scan_projects([root], ("_old_",), plugin, as_json=True) == 0
-    scan_json = json.loads(output.getvalue())
-    assert scan_json["totals"]["projects"] == 3, scan_json
-    assert all("_old_" not in item["path"] for item in scan_json["projects"]), scan_json
-
-    def stale_json_repo(name):
-        project = repo(name)
-        apply.run(project, plugin, ["FOO.md"], "neither")
-        manifest = apply.load_json(project / "coding-rules.json", {})
-        manifest["rules"]["FOO.md"] = 1
-        apply.save_json(project / "coding-rules.json", manifest)
-        return project
-
-    stale_copy = stale_json_repo("stale-copy")
-    stale_copy_before = apply.read_text(stale_copy / apply.RULES_FILE)
-    missing_project = root / "missing-project"
-    current_spelling = os.path.join(str(current.parent), ".", current.name)
-    explicit_paths = [str(stale_copy), str(current), str(no_manifest), str(missing_project),
-                      str(current), current_spelling]
-    output = io.StringIO()
-    with contextlib.redirect_stdout(output):
-        assert main([
-            *sum((["--project", path] for path in explicit_paths), []),
-            "--json", "--dry-run",
-        ], plugin_root=plugin) == 1
-    explicit_json = json.loads(output.getvalue())
-    assert explicit_json["dry_run"] is True, explicit_json
-    assert [item["path"] for item in explicit_json["projects"]] == [
-        str(stale_copy), str(current), str(no_manifest), str(missing_project), current_spelling,
-    ], explicit_json
-    assert [item["status"] for item in explicit_json["projects"]] == [
-        "updated", "current", "no_manifest", "error", "current",
-    ], explicit_json
-    assert explicit_json["projects"][2]["rules_file"] is True, explicit_json
-    assert explicit_json["totals"] == {
-        "projects": 5, "using": 3, "updated": 1, "current": 2,
-        "needs_decision": 0, "no_manifest": 1, "errors": 1,
-    }, explicit_json
-    assert apply.read_text(stale_copy / apply.RULES_FILE) == stale_copy_before
-
-    stale_update = stale_json_repo("stale-update")
-    output = io.StringIO()
-    with contextlib.redirect_stdout(output):
-        assert main(["--project", str(stale_update), "--json"], plugin_root=plugin) == 0
-    update_json = json.loads(output.getvalue())
-    assert update_json["projects"][0]["status"] == "updated", update_json
-    assert update_json["projects"][0]["outdated"] == [
-        {"rule": "FOO.md", "applied": 1, "current": 2},
-    ], update_json
-    assert apply.load_json(stale_update / "coding-rules.json", {})["rules"]["FOO.md"] == 2
-
-    # Exercise argparse wiring against the real plugin root without a manifest.
-    cli_project = temp / "cli-project"
-    cli_project.mkdir()
-    output = io.StringIO()
-    with contextlib.redirect_stdout(output):
-        assert main(["--project", str(cli_project), "--json", "--dry-run"]) == 0
-    assert json.loads(output.getvalue())["projects"][0]["status"] == "no_manifest"
-
-    classification_versions = {
-        "pointer": 1,
-        apply.FLOW_FILE: 1,
-        GRAPHIFY: 1,
-        GRAPHIFY_FLOW: 1,
-    }
-    outdated, decisions = classify_manifest(
-        {"rules": {"AI_RULES.md": 0}, "pointerVersion": 1}, classification_versions)
-    assert outdated == [(apply.FLOW_FILE, 0, 1)] and not decisions, (outdated, decisions)
-    outdated, decisions = classify_manifest(
-        {"rules": {GRAPHIFY: 1}, "pointerVersion": 1}, classification_versions)
-    assert (GRAPHIFY_FLOW, 0, 1) in outdated and not decisions, (outdated, decisions)
-    _, decisions = classify_manifest(
-        {"rules": {GRAPHIFY: 2, "UNKNOWN.md": 1}, "pointerVersion": 1},
-        classification_versions,
-    )
-    assert len(decisions) == 2, decisions
-
-    missing = temp / "settings" / "settings.json"
-    try:
-        load_settings(missing)
-        raise AssertionError("missing settings should fail")
-    except SettingsError:
-        pass
-    assert missing.with_name("settings.example.json").read_bytes() == SETTINGS_TEMPLATE.read_bytes()
-    missing.write_text(json.dumps({"folders": [str(root)], "ignore_prefixes": [""]}), encoding="utf-8")
-    try:
-        load_settings(missing)
-        raise AssertionError("empty ignore prefix should fail")
-    except SettingsError:
-        pass
-    python_source = rules / "PYTHON_RULES.md"
-    python_source.write_text("# Version\n6\n\n# Python Rules (uv)\n\n## GUI Framework\n\nold GUI\n", encoding="utf-8")
-    apply.save_json(rules / "versions.json", {"pointer": 1, "FOO.md": 2, "PYTHON_RULES.md": 6})
-    desktop = repo("desktop")
-    (desktop / "pyproject.toml").write_text('dependencies = ["pyside6"]\n', encoding="utf-8")
-    apply.run(desktop, plugin, ["PYTHON_RULES.md"], "neither")
-    (rules / "python").mkdir()
-    (rules / "python" / "GUI.md").write_text(
-        "# Version\n1\n\n# Python Desktop GUI (PySide6)\n\nnew GUI\n", encoding="utf-8")
-    python_source.write_text("# Version\n7\n\n# Python Rules (uv)\n\nlean\n", encoding="utf-8")
-    apply.save_json(rules / "versions.json", {"pointer": 1, "FOO.md": 2,
-                    "PYTHON_RULES.md": 7, "python/GUI.md": 1})
-    output = io.StringIO()
-    with contextlib.redirect_stdout(output):
-        assert scan_projects([root], ("_old_",), plugin) == 0
-    assert "kept: python/GUI.md" in output.getvalue(), output.getvalue()
-    assert "new GUI" in apply.read_text(desktop / apply.RULES_FILE)
-
-    print("self-test OK")
+    run_self_test()
 
 
 if __name__ == "__main__":
