@@ -38,6 +38,7 @@ Always read `${CLAUDE_PLUGIN_ROOT}/rules/COMMON_RULES.md` and `${CLAUDE_PLUGIN_R
   (`System.Windows.Forms` / `<UseWindowsForms>` in the `.csproj`); skip it for console
   tools, services and libraries. An existing C# project crossing the v2 split keeps it
   automatically via `split_kept`.
+- PHP optional rules: `php/APP.md` for PHP web apps and APIs (`public/index.php`, Slim, Twig, Cycle ORM; pair with `project_type/REST_API.md` or `project_type/SERVER_RENDERED_FRONTEND.md`). Composer packages with `"type": "library"` get `PHP_RULES.md` + `project_type/PHP_LIBRARY.md` and skip `php/APP.md`. An existing PHP project crossing the v5 split keeps `php/APP.md` automatically via `split_kept`.
 - Flutter optional rules: `flutter/APP.md` for Flutter apps (`lib/main.dart`, builds an
   APK). Skip it for library/plugin packages (pub packages whose only app is `example/`) —
   they get `FLUTTER_RULES.md` alone.
@@ -57,7 +58,7 @@ project's declared selection (keys are paths relative to `rules/`, e.g. `PYTHON_
 `project_type/REST_API.md`). On a re-run, only ask the user about deltas
 (newly-relevant languages/project types) instead of re-deriving the whole list.
 When an existing Python project first crosses the v7 split, a C# project first
-crosses the v2 split, or a Flutter project first crosses the v14 split, `apply.py`
+crosses the v2 split, a Flutter project first crosses the v14 split, or a PHP project first crosses the v5 split, `apply.py`
 keeps detected optional files automatically and reports them in `split_kept`. Tell the
 user which files were kept and which inline sections went away. To opt out of an
 optional file, remove its copied block and its `rules` key from the manifest.
