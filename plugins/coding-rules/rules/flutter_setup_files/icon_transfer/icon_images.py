@@ -63,3 +63,11 @@ def svg_aspect(path: Path) -> tuple[float, float]:
         if name in ("image", "text", "filter", "mask"):
             raise ValueError(f"SVG cannot contain <{name}>: {path}")
     return values[2], values[3]
+
+
+def check_safe_file(incoming: Path, source: Path) -> None:
+    if not incoming.is_file() or any(
+        path.is_symlink() for path in (incoming, *incoming.parents)
+        if path != source and source in path.parents
+    ):
+        raise ValueError(f"Icon must be a regular file, not a link: {incoming}")

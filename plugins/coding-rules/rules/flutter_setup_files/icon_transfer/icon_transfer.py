@@ -23,6 +23,7 @@ icon_placeholders = importlib.import_module("icon_placeholders")
 IconFile = icon_config.IconFile
 load_config = icon_config.load_config
 atomic_write = icon_images.atomic_write
+check_safe_file = icon_images.check_safe_file
 png_size = icon_images.png_size
 svg_aspect = icon_images.svg_aspect
 placeholder_svg = icon_placeholders.placeholder_svg
@@ -147,14 +148,6 @@ def _is_placeholder(path: Path, icon: IconFile, root: Path) -> bool:
     return path.read_bytes() == placeholder_svg(round(width), round(height))
 
 
-def _check_safe_file(incoming: Path, source: Path) -> None:
-    if not incoming.is_file() or any(
-        path.is_symlink() for path in (incoming, *incoming.parents)
-        if path != source and source in path.parents
-    ):
-        raise ValueError(f"Icon must be a regular file, not a link: {incoming}")
-
-
 def import_icons(root: Path, source: Path) -> ImportResult:
     if CONFIG_ERROR:
         raise CONFIG_ERROR
@@ -178,7 +171,7 @@ def import_icons(root: Path, source: Path) -> ImportResult:
         if not incoming.exists() and not incoming.is_symlink():
             missing.append(icon.export_path)
             continue
-        _check_safe_file(incoming, source)
+        check_safe_file(incoming, source)
         listed_count += 1
         current = root / icon.repo_path
         if icon.kind == "svg":
