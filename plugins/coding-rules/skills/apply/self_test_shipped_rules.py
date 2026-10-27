@@ -9,6 +9,7 @@ from file_io import read_text
 from file_io import save_json
 from pathlib import Path
 from rule_migration import project_uses
+from self_test_rest_api_split import self_test as test_rest_api_split
 import re
 import tempfile
 
@@ -266,5 +267,7 @@ def self_test():
         shipped_root / "skills" / "enforce" / "SKILL.md",
     ):
         assert all(term in read_text(pinned) for term in pin_terms), pinned
+
+    test_rest_api_split()
 
 

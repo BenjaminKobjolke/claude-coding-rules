@@ -122,11 +122,11 @@ def migrate_legacy(text, title_to_rel, plugin_root=None):
     return strip_legacy_imports("".join(result_lines)), migrated, unrecognized, tailored
 
 def project_uses(project, markers):
-    pyproject = project / "pyproject.toml"
-    project_text = read_text(pyproject) if pyproject.exists() else ""
-    composer = project / "composer.json"
-    if composer.exists():
-        project_text += "\n" + read_text(composer)
+    project_text = "\n".join(
+        read_text(project / manifest)
+        for manifest in ("pyproject.toml", "composer.json")
+        if (project / manifest).exists()
+    )
     project_files = [path for pattern in ("*.csproj", "*/*.csproj")
                      for path in project.glob(pattern)]
     project_text += "\n" + "\n".join(read_text(path) for path in project_files)

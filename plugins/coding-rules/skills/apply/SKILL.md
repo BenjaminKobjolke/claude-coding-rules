@@ -42,6 +42,10 @@ Always read `${CLAUDE_PLUGIN_ROOT}/rules/COMMON_RULES.md` and `${CLAUDE_PLUGIN_R
 - Flutter optional rules: `flutter/APP.md` for Flutter apps (`lib/main.dart`, builds an
   APK). Skip it for library/plugin packages (pub packages whose only app is `example/`) —
   they get `FLUTTER_RULES.md` alone.
+- REST API auth variants: with `project_type/REST_API.md`, include exactly one of
+  `project_type/rest_api/JWT_AUTH.md` (`firebase/php-jwt` in `composer.json`, Bearer tokens)
+  or `project_type/rest_api/API_KEY_AUTH.md` (API-key header, admin key in config). Ask when
+  the code shows neither or both.
 - Project-type rules: see `PROJECT_TYPES.md` for the overview, files in `project_type/`
 - Supplemental rules: `DESIGN_RULES.md` — include when the project has a user interface
   (desktop, web, mobile, TUI); skip it for libraries, APIs, and headless tools
@@ -58,9 +62,11 @@ project's declared selection (keys are paths relative to `rules/`, e.g. `PYTHON_
 `project_type/REST_API.md`). On a re-run, only ask the user about deltas
 (newly-relevant languages/project types) instead of re-deriving the whole list.
 When an existing Python project first crosses the v7 split, a C# project first
-crosses the v2 split, a Flutter project first crosses the v14 split, or a PHP project first crosses the v5 split, `apply.py`
-keeps detected optional files automatically and reports them in `split_kept`. Tell the
-user which files were kept and which inline sections went away. To opt out of an
+crosses the v2 split, a Flutter project first crosses the v14 split, a PHP project first
+crosses the v5 split, or a REST API project first crosses the v10 split, `apply.py` keeps
+detected optional files automatically and reports them in `split_kept`. For REST APIs,
+`project_type/rest_api/JWT_AUTH.md` is kept when `composer.json` uses `firebase/php-jwt`.
+Tell the user which files were kept and which inline sections went away. To opt out of an
 optional file, remove its copied block and its `rules` key from the manifest.
 
 Read `graphify_setup_files/SETUP.md` when wiring graphify up; it is setup guidance,

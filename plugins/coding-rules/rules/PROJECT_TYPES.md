@@ -1,5 +1,5 @@
 # Version
-7
+8
 
 Increase this version number whenever this rule file changes.
 
@@ -13,7 +13,12 @@ Each project-type file references `COMMON_RULES.md` and the relevant language ru
 
 ## REST API — `project_type/REST_API.md`
 
-PHP REST API projects. Stack: Slim 4 (PSR-7) + Cycle ORM 2.x + Firebase JWT + MySQL/MariaDB.
+PHP REST API projects. Stack: Slim 4 (PSR-7) + Cycle ORM 2.x + MySQL/MariaDB. Authentication
+uses one variant in `project_type/rest_api/`:
+
+- `rest_api/JWT_AUTH.md` for Bearer/JWT login.
+- `rest_api/API_KEY_AUTH.md` for static admin and user API keys.
+
 Covers project structure, route conventions (`/api/v1/`), `AbstractController` response
 helpers, service/repository/presenter layers, auth + CORS middleware, `SyncTables`
 auto-migration, `ApiTestCase` test infrastructure, endpoint documentation in

@@ -50,6 +50,8 @@ SPLITS = {"PYTHON_RULES.md": (7, {
         "public/index.php", ".htaccess", "slim/slim", "twig/twig", "cycle/orm",
         "config/database.php.example",
     ),
+}), "project_type/REST_API.md": (9, {
+    "project_type/rest_api/JWT_AUTH.md": ("firebase/php-jwt",),
 })}
 
 POINTER_TITLE = "# Coding Rules (Pointer)"

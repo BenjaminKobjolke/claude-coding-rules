@@ -66,9 +66,11 @@ def self_test():
 
     marker_project = Path(tempfile.mkdtemp())
     (marker_project / "composer.json").write_text(
-        '{"require":{"slim/slim":"^4"}}', encoding="utf-8"
+        '{"require":{"slim/slim":"^4","firebase/php-jwt":"^6"}}',
+        encoding="utf-8",
     )
     assert project_uses(marker_project, SPLITS["PHP_RULES.md"][1]["php/APP.md"])
+    assert project_uses(marker_project, ("firebase/php-jwt",))
     assert not project_uses(Path(tempfile.mkdtemp()), ("public/index.php",))
     (marker_project / "public").mkdir()
     (marker_project / "public" / "index.php").write_text("<?php", encoding="utf-8")

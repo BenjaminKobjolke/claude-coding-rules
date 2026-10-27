@@ -1,5 +1,5 @@
 # Version
-9
+10
 
 Increase this version number whenever this rule file changes.
 
@@ -17,7 +17,7 @@ See `PHP_RULES.md` for general PHP rules and `php/APP.md` for config files, time
 |-----------|-----------|
 | Framework | Slim 4 (PSR-7 HTTP) |
 | ORM | Cycle ORM 2.x with annotations |
-| Authentication | Firebase JWT (`firebase/php-jwt`) |
+| Authentication | One variant from `project_type/rest_api/` |
 | Database | MySQL/MariaDB |
 | Schema Migration | Cycle `SyncTables` (auto-migration) |
 
@@ -52,7 +52,7 @@ project/
 │   ├── Exception/              # Custom exceptions
 │   ├── Helper/                 # Utility helpers
 │   ├── Middleware/              # HTTP middleware
-│   │   ├── AuthMiddleware.php
+│   │   ├── AuthMiddleware.php          # from the chosen auth variant
 │   │   ├── ConditionalGetMiddleware.php
 │   │   └── CorsMiddleware.php
 │   ├── Presenter/              # Response formatters
@@ -67,7 +67,6 @@ project/
 │   ├── run_tests.bat            # Run PHPUnit
 │   ├── analyze_code.bat        # Run code analysis
 │   ├── fix_issues.bat          # Auto-fix code issues
-│   └── gen_token.php           # JWT token generator for manual testing
 ├── composer.json
 ├── phpunit.xml
 └── README.md
@@ -716,71 +715,19 @@ the user pays for (tickets-api "high data usage" incident, 2026-09).
 
 ---
 
-## JWT Authentication Middleware
+## Authentication
 <!-- steps: review, code -->
 
-The `AuthMiddleware` validates Bearer tokens and supports dual token types (JWT + API tokens with prefix):
+Exactly one authentication variant applies on top of these shared REST API rules:
 
-```php
-class AuthMiddleware implements MiddlewareInterface
-{
-    private Container $container;
+- `project_type/rest_api/JWT_AUTH.md` for JWT Bearer tokens.
+- `project_type/rest_api/API_KEY_AUTH.md` for static API keys.
 
-    public function __construct(Container $container)
-    {
-        $this->container = $container;
-    }
-
-    public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
-    {
-        $authHeader = $request->getHeaderLine('Authorization');
-
-        if (empty($authHeader) || !preg_match('/^Bearer\s+(.+)$/i', $authHeader, $matches)) {
-            return $this->unauthorized('Missing or invalid Authorization header');
-        }
-
-        $token = $matches[1];
-
-        // Dispatch by token type (API token prefix vs JWT)
-        if (ApiTokenConfig::isApiToken($token)) {
-            return $this->handleApiToken($request, $handler, $token);
-        }
-        return $this->handleJwtToken($request, $handler, $token);
-    }
-}
-```
-
-### Auth Flow
-
-1. Extract `Authorization: Bearer <token>` header
-2. Detect token type by prefix (e.g., `thapi_` for API tokens)
-3. Validate token and resolve user ID
-4. Store user ID in request attribute: `$request->withAttribute('user_id', $userId)`
-5. Store auth type in request attribute: `$request->withAttribute('auth_type', 'jwt')`
-6. Controllers read via `$this->getUserId($request)`
-
-### API Token Storage
-
-API tokens are prefixed opaque tokens, never stored in plain text:
-
-- Format: `<prefix>_<random>` (e.g. `thapi_` + `bin2hex(random_bytes(32))`)
-- Store only the SHA-256 hash (`token_hash` column); the raw token is shown ONCE at creation
-- Track `last_used_at` on each successful validation
-- Restrict regular users' tokens to an endpoint allowlist in a config class
-  (`ApiTokenConfig::ALLOWED_ENDPOINTS`, a `METHOD => [paths]` map checked by the middleware)
-
-### Machine Accounts
-
-For headless integrations, `POST /api/v1/auth/machine-account` provisions an account without
-OAuth. The `User.isMachine` flag grants that account's API token FULL access, bypassing the
-endpoint allowlist that restricts regular users' tokens. The middleware does one user lookup
-to check the flag.
-
-### Admin Token Dev Endpoint
-
-`POST /api/v1/auth/admin-token` mints a JWT for a given user when the request supplies
-`config['admin_token_password']` — a dev/testing convenience to skip the full OAuth flow.
-Document it as dev-only.
+Every variant keeps authentication middleware on the protected route group, sets the `user_id`
+and `auth_type` request attributes for authenticated users, and lets controllers read the user ID
+through `$this->getUserId($request)`. Return `401` for missing or invalid credentials and `403`
+when an authenticated user is not allowed to access a resource, using the standard error body.
+Compare admin keys with `hash_equals`; never store or log credentials in plain text.
 
 ---
 
@@ -1017,7 +964,7 @@ abstract class ApiTestCase extends TestCase
 ### Key Test Utilities
 
 ```php
-// Create authenticated requests with auto-generated JWT
+// Create authenticated requests with the credential of the project's auth variant
 $request = $this->createAuthenticatedRequest('GET', '/api/v1/habits');
 
 // Create and auto-cleanup database users
@@ -1070,7 +1017,6 @@ Every REST API project must include these batch files in `tools/`:
 | `tools/run_tests.bat` | Run PHPUnit test suite |
 | `tools/analyze_code.bat` | Run PHPStan + code analysis |
 | `tools/fix_issues.bat` | Auto-fix code style (PHP-CS-Fixer) |
-| `tools/gen_token.php` | Generate JWT tokens for manual API testing |
 
 ### Post-Implementation Workflow
 
@@ -1092,22 +1038,20 @@ powershell -Command "cd 'tools'; cmd /c '.\run_tests.bat'"
 ## Manual API Testing
 <!-- steps: review, code -->
 
-Use `tools/gen_token.php` to generate JWT tokens for curl testing:
+Set `$AUTH_HEADER` to the authentication header documented by the project's auth variant, then use it for curl testing:
 
 ```bash
-# Generate a token for a user
-TOKEN=$(php tools/gen_token.php <user_id>)
-
+# Set the authentication header for the chosen variant
 # GET request
-curl -s -H "Authorization: Bearer $TOKEN" http://localhost/my-api/api/v1/habits | jq
+curl -s -H "$AUTH_HEADER" http://localhost/my-api/api/v1/habits | jq
 
 # gzip + conditional GET on a live host (expect Content-Encoding: gzip, then 304)
-curl -s -I -H 'Accept-Encoding: gzip' -H "Authorization: Bearer $TOKEN" http://localhost/my-api/api/v1/habits
-curl -s -I -H "If-None-Match: <ETag>" -H "Authorization: Bearer $TOKEN" http://localhost/my-api/api/v1/habits
+curl -s -I -H 'Accept-Encoding: gzip' -H "$AUTH_HEADER" http://localhost/my-api/api/v1/habits
+curl -s -I -H "If-None-Match: <ETag>" -H "$AUTH_HEADER" http://localhost/my-api/api/v1/habits
 
 # POST request
 curl -s -X POST \
-  -H "Authorization: Bearer $TOKEN" \
+  -H "$AUTH_HEADER" \
   -H "Content-Type: application/json" \
   -d '{"name":"Test Habit"}' \
   http://localhost/my-api/api/v1/habits | jq
@@ -1126,7 +1070,7 @@ endpoint changes.
 `docs/endpoints/README.md` is the entry point. It contains:
 
 - Base URL code block
-- Authentication note (`Authorization: Bearer <token>`)
+- Authentication note as defined by the auth variant
 - Endpoints grouped by feature, each linking to its file:
 
 ```markdown
@@ -1153,7 +1097,7 @@ GET /api/v1/habits/week
 
 ## Authentication
 
-**Required.** Bearer token in Authorization header.
+**Required.** Use the authentication header defined by the project's auth variant.
 
 ## Query Parameters
 
@@ -1189,7 +1133,7 @@ GET /api/v1/habits/week?offset=-1
 ```json
 {
     "error": true,
-    "message": "Invalid or expired token"
+    "message": "Missing or invalid credentials"
 }
 ```
 ```
@@ -1234,7 +1178,7 @@ All requests use Hoppscotch environment variables — never hardcode host or tok
 {
     "endpoint": "<<baseURL>>api/v1/habits/week",
     "headers": [
-        {"key": "Authorization", "value": "Bearer <<token>>", "active": true}
+        {"key": "<header defined by auth variant>", "value": "<credential variable>", "active": true}
     ]
 }
 ```
