@@ -20,7 +20,7 @@
   "UNITY_CSHARP_RULES.md": 1,
   "WORDPRESS_RULES.md": 2,
   "WORDPRESS_THEMES.md": 1,
-  "PROJECT_TYPES.md": 9,
+  "PROJECT_TYPES.md": 10,
   "CREATE_NEW_RULES.md": 3,
   "project_type/FRONTEND.md": 4,
   "project_type/SERVER_RENDERED_FRONTEND.md": 2,
@@ -44,5 +44,6 @@
   "csharp/WINFORMS.md": 1,
   "php/APP.md": 1,
   "project_type/PHP_LIBRARY.md": 1,
-  "project_type/PYTHON_DESKTOP_PLUGIN.md": 1
+  "project_type/PYTHON_DESKTOP_PLUGIN.md": 1,
+  "project_type/PYTHON_WEB_SERVICE.md": 2
 }

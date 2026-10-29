@@ -268,6 +268,30 @@ def self_test():
     ):
         assert all(term in read_text(pinned) for term in pin_terms), pinned
 
+    python_web_service_path = "project_type/PYTHON_WEB_SERVICE.md"
+    assert shipped_versions.get(python_web_service_path) == 2
+    project_types = read_text(shipped_root / "rules" / "PROJECT_TYPES.md")
+    assert (
+        "## Python Web Service — `project_type/PYTHON_WEB_SERVICE.md`"
+        in project_types
+    )
+    assert "Pair with `PYTHON_RULES.md`" in project_types
+    assert "`DESIGN_RULES.md` applies" in project_types
+
+    python_web_service = read_text(shipped_root / "rules" / python_web_service_path)
+    assert all(term in python_web_service for term in (
+        "FastAPI", "ASGI", "Route organization", "Pydantic",
+        "response model", "Error handling", "environment", "secrets",
+        "authentication", "unauthenticated", "static", "command-line",
+        "pytest", "CLI",
+    ))
+    assert "does not require a separate frontend framework" in python_web_service
+    assert "or frontend build tool" in python_web_service
+    assert all(term not in python_web_service for term in (
+        "Cycle ORM", "AbstractController", "ApiTestCase", "Hoppscotch",
+        "PHP_RULES.md", "must use Vite", "must use npm",
+    ))
+
     test_rest_api_split()
 
 

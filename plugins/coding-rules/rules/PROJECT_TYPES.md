@@ -1,5 +1,5 @@
 # Version
-9
+10
 
 Increase this version number whenever this rule file changes.
 
@@ -25,6 +25,16 @@ auto-migration, `ApiTestCase` test infrastructure, endpoint documentation in
 `docs/endpoints/`, Hoppscotch collections, and required `tools/*.bat` files.
 
 Pair with `PHP_RULES.md` and `php/APP.md`.
+
+## Python Web Service — `project_type/PYTHON_WEB_SERVICE.md`
+
+FastAPI and similar ASGI services, including services that serve static browser assets or expose
+a command-line integration. Covers route organization, request and response boundaries, errors,
+configuration, optional authentication, static assets, CLI boundaries, and focused tests without
+requiring a particular frontend build tool.
+
+Pair with `PYTHON_RULES.md`. `DESIGN_RULES.md` applies when the service includes a user-facing
+browser interface.
 
 ## PHP Library — `project_type/PHP_LIBRARY.md`
 
