@@ -1,5 +1,5 @@
 # Version
-10
+11
 
 Increase this version number whenever this rule file changes.
 
@@ -61,12 +61,16 @@ has an Electron desktop app. `DESIGN_RULES.md` applies. Do not apply
 
 ## Server-Rendered PHP Frontend — `project_type/SERVER_RENDERED_FRONTEND.md`
 
-Server-rendered PHP web frontends using Slim 4, Twig 3, Bootstrap 5, and Guzzle against a separate
-REST API, with PHP sessions, SCSS, and esbuild TypeScript. The type covers the frontend/API boundary,
-page data loading, controllers, API client, Twig, forms, and the frontend build.
+PHP web applications that route requests and render HTML on the server, commonly with Twig. They
+may use a local database, consume an API, or both; they are not REST APIs or frontend SPAs. The type
+covers server-side routing, page controllers, template rendering, application configuration,
+static and media assets, and deployment boundaries. For REST endpoints, use
+`project_type/REST_API.md`; for a browser-rendered SPA, use `project_type/FRONTEND.md`.
 
-Pair with `PHP_RULES.md`, `php/APP.md`, `SCSS_RULES.md`, and `TYPESCRIPT_RULES.md`; `DESIGN_RULES.md` applies (it
-has a UI).
+Pair with `PHP_RULES.md` and `php/APP.md`. Add `DESIGN_RULES.md` because the project has a UI, and
+add the rules for asset languages and tools it uses, such as `SCSS_RULES.md` or
+`TYPESCRIPT_RULES.md`. Do not pair this type with the REST API or frontend SPA rules for the same
+server-rendered application.
 
 ## Flutter app vs. library
 

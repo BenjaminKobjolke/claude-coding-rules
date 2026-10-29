@@ -1,216 +1,130 @@
 # Version
-2
+3
 
 Increase this version number whenever this rule file changes.
 
 # Server-Rendered PHP Frontend Rules
 
-These rules apply to PHP web frontends that render HTML on the server with Twig, call a separate
-REST API for data, and do not own a database. They complement `COMMON_RULES.md`, `PHP_RULES.md`, and `php/APP.md`.
+These rules apply to PHP web applications that route requests and render HTML on the server,
+commonly with Twig. The application owns page rendering and may use a local database, call one or
+more APIs, or do both. It is neither a REST API project nor a browser-rendered single-page app.
 
-Pair with `PHP_RULES.md`, `php/APP.md`, `SCSS_RULES.md`, `TYPESCRIPT_RULES.md`, and `DESIGN_RULES.md` — rules there are not repeated here.
+It covers server-side routing, route names, template rendering, application configuration, static
+and media assets, and deployment boundaries.
 
----
-
-## Tech Stack
-
-Typical projects use PHP 8.5 and Slim 4 for routing and middleware, Twig 3 for templates, Bootstrap 5
-and Bootstrap Icons from a CDN, Guzzle 7 for API calls, PHP sessions for server-side state, and
-Monolog through the project `Logger`. Compile SCSS with the Dart Sass CLI and browser TypeScript with
-esbuild. Use PHPUnit, PHPStan, and PHP-CS-Fixer for tests and code quality. Pin CDN asset URLs to a
-specific version and include the matching Subresource Integrity (`integrity`) hash and
-`crossorigin="anonymous"` attribute.
+Pair with `COMMON_RULES.md`, `PHP_RULES.md`, and `php/APP.md`. Add `DESIGN_RULES.md` for its user
+interface and add rules for asset languages or build tools the project actually uses, such as
+`SCSS_RULES.md` or `TYPESCRIPT_RULES.md`.
 
 ---
 
-## Project Structure
+## Request Routing and Controllers
 
-Keep HTTP entry, application code, templates, source assets, and generated assets in distinct places:
-
-```text
-project/
-├── public/index.php
-├── src/
-│   ├── Controller/
-│   ├── Service/
-│   ├── Config/
-│   ├── Middleware/
-│   ├── DTO/
-│   └── Twig/
-├── templates/
-│   ├── base/
-│   ├── layouts/
-│   ├── components/
-│   └── pages/
-├── assets/
-│   ├── scss/                 # Source, compiled to css/
-│   ├── css/                  # Generated output; do not edit by hand
-│   ├── ts/                   # Source, bundled to js/
-│   └── js/                   # Generated output; do not edit by hand
-├── lang/
-├── config/app.php            # Local config; keep app.php.example committed
-└── tests/
-    ├── Unit/
-    └── Integration/
-```
+- Keep the web server's document root on the public directory. Route requests through one front
+  controller when the framework requires it; keep route declarations in the framework's routing
+  configuration rather than duplicating path checks across controllers.
+- Give routes stable names and generate links and redirects from those names. Keep URL paths,
+  HTTP methods, middleware, and controller actions explicit and consistent.
+- Keep controllers as the boundary that translates an HTTP request into application work and a
+  response. Put domain decisions and persistence in existing services and repositories; do not
+  put SQL, API transport, or business workflows in route declarations or templates.
+- Validate path, query, form, and uploaded-file input at the request boundary. Convert accepted
+  input into typed values before passing it to application services.
+- Use POST/redirect/GET for ordinary form submissions. Protect state-changing requests with CSRF
+  tokens and the framework's method and authorization checks.
 
 ---
 
-## Frontend Only — Never Change the API From Here (BINDING)
+## Rendering with Twig
 
-The backend API has its own repository and owns its endpoints, fields, validation, sorting, filtering,
-and paging. Do not edit that backend from the frontend project. When a screen needs a missing API
-capability, request it through `/feedback:write` or a linked todo, then implement against the agreed
-contract. Follow `COMMON_RULES.md` → “API Clients: the API Sorts, Filters and Pages”.
-
----
-
-## One API Round per Page
-
-Load the independent data needed for a page together, for example through a Guzzle concurrent pool
-behind a page loader. Do not make a detail request for every row in a list (N+1). If a page needs too
-many calls, request a screen overview endpoint from the API project; see
-`project_type/REST_API.md` → “Screen Overview Endpoints”. Forget session-cached lookups after a
-successful mutation so later reads use current data.
+- Keep Twig autoescaping enabled and strict variable checks on outside production if the framework
+  supports that split. Never mark user-provided or externally sourced content as raw HTML without
+  an explicit sanitization boundary.
+- Controllers or page services assemble the data a page needs and pass it as template context.
+  Templates render that context; they do not query a database or make network requests.
+- Put shared page structure and reusable fragments in base layouts and components. Keep
+  page-specific markup in page templates, and share form markup through partials when create and
+  edit forms have the same fields.
+- Keep presentation and localization in templates and translation resources. Put decisions that
+  affect permissions, prices, or persisted state in application code.
+- Use the project's URL and asset helpers to build links. Avoid hand-joining relative paths, which
+  resolve differently from nested routes or an application deployed below a URL prefix.
 
 ---
 
-## AbstractController
+## Application Configuration and State
 
-Every page controller extends the shared `AbstractController`. Its `render()` method adds shared
-template context such as the current user, flash messages, and locale. Templates receive that
-context; they do not fetch it themselves. Reuse its route-name-based `redirect()`, `flash()`, `t()`,
-and API access helpers instead of rebuilding them in page controllers.
-
-```php
-final class CustomerController extends AbstractController
-{
-    public function show(Request $request, Response $response, array $args): Response
-    {
-        $customer = $this->api()->getCustomer((int) $args['id']);
-
-        return $this->render($response, 'pages/customer/show.html.twig', [
-            'customer' => $customer,
-        ]);
-    }
-}
-```
+- Load environment-specific values through the project's central configuration layer. Commit an
+  example configuration that names required keys, but never commit secrets or machine-specific
+  values.
+- Keep authentication and session state server-side where possible. Configure session cookies as
+  `HttpOnly`, `Secure` in HTTPS environments, and an appropriate `SameSite` mode; regenerate the
+  session identifier after authentication changes.
+- Apply authorization on the server for every protected page and mutation. Hiding a link or button
+  is not access control.
+- Store durable application data through the project's existing repository or ORM conventions.
+  A local database is optional; do not add a database mirror solely because a page consumes an API.
 
 ---
 
-## ApiClient
+## Data Sources and API Consumers
 
-`ApiClient` is the only class that makes HTTP calls. It wraps Guzzle, adds the JWT and other required
-context headers from the server-side session, maps transport and API errors, and returns an
-`ApiResponse` DTO containing status, success, data, metadata, and an error message. Wrap response
-data in typed DTOs before it reaches controllers or templates; see `COMMON_RULES.md` → “No
-Bag-of-Keys Returns at Module Boundaries”. Build pagination DTOs from API metadata, for example with
-`PaginationData::fromApiMeta()`.
+Use the application's existing service and repository boundaries for local data. When a page needs
+data from an external or separately owned API, keep HTTP calls in the shared API client or adapter,
+and map responses to typed values before they reach controllers or templates.
 
-When the API returns 401, clear the authenticated session and redirect through the login flow. Keep
-that behavior centralized in the client or its shared auth handling, not repeated in each controller.
+The following guidance applies only when the application consumes a separate API:
 
----
-
-## Auth and Session
-
-Keep the JWT in the server-side PHP session. Never expose it to browser JavaScript, a readable
-cookie, or `localStorage`. Configure the session cookie as `HttpOnly`, `Secure`, and `SameSite=Lax`,
-and regenerate the session ID after login. Release the session lock early on requests that only read
-session data, so one slow page does not serialize the user's other requests.
+- Keep API transport, authentication headers, error mapping, and response decoding in the shared
+  client. Never expose server credentials or bearer tokens to browser JavaScript.
+- Request the independent data needed for a page together where practical; avoid a detail request
+  for every row in a rendered list.
+- Follow the API's paging, sorting, and filtering contract. Request a missing capability from the
+  API owner instead of rebuilding a complete collection in the PHP frontend.
+- On authentication expiry, clear invalid server-side session state and use the application's
+  login flow. Keep this behavior centralized rather than repeating it in page controllers.
 
 ---
 
-## Constants Classes
+## Static and Media Assets
 
-Keep API endpoint names, route names, session keys, and flash message types in constants classes in
-`src/Config/`, such as `ApiEndpoints`, `RouteNames`, `SessionKeys`, and `FlashMessageTypes`.
-`TranslationKeys` is defined by `PHP_RULES.md`; localization rules are in `php/APP.md`. Build links with route names through `url_for()`;
-never hard-code route paths into templates or controllers.
-
----
-
-## Twig
-
-- Keep Twig `strict_variables` enabled and autoescaping on. Never apply `|raw` to API data.
-- After every `.html.twig` change, run `tools/run_twig_lint.bat`. It checks syntax only, so also
-  confirm that the controller supplies every variable the template reads.
-- Use the project's `asset()` Twig function for assets. It must account for the deployment base path
-  and append a cache-busting version (for example, a file modification time). This type-specific
-  rule overrides `php/APP.md` advice to use plain relative paths: nested routes such as
-  `/customers/5/edit` make relative paths resolve from the wrong directory.
-- Do not add `only` to an include when the component needs shared globals.
-- Share create and edit markup through a `_form` partial where their fields are the same.
+- Keep source assets separate from generated bundles. Edit source styles and scripts, and use the
+  project's build command to produce generated CSS and JavaScript.
+- Generate asset URLs through the shared asset helper so the deployment base path and cache-busting
+  version are handled consistently. Do not hard-code root-relative URLs when the app may be mounted
+  under a prefix.
+- Serve only intended public assets from the document root. Keep source files, configuration,
+  uploaded originals, and other private data outside it unless they are deliberately published.
+- Validate media uploads by size, allowed content type, and file content. Generate server-side
+  filenames, prevent executable uploads, and store private media outside the public directory with
+  access controlled by the application.
+- Use stable cache headers for fingerprinted static assets. Ensure deployment publishes the
+  generated files referenced by the rendered pages.
 
 ---
 
-## Forms and Mutations
+## Deployment Boundary
 
-Submit mutations from HTML forms using POST and validate a CSRF token in middleware. The controller
-validates input into a typed object, then asks `ApiClient` to send the corresponding PUT, PATCH, or
-DELETE request to the separate API. Follow `php/APP.md` → “Value Objects for `$_POST` / `$_GET` Boundaries”.
-Use post/redirect/get with a flash message for the ordinary non-AJAX response.
-
----
-
-## AJAX Forms With No-JS Fallback
-
-Small forms and pages with multiple independent forms use the shared AJAX form widget, marked with
-`data-ajax-form`, so submitting one form does not discard sibling form state. The controller detects
-AJAX requests and returns the widget's expected JSON response. Keep the flash-and-redirect path for
-users without JavaScript. Reuse shared widgets; do not add one-off fetch and submit handling per page.
-
----
-
-## Assets
-
-Never edit generated `assets/css/` or `assets/js/` files by hand. Keep styles in `assets/scss/` and
-compile them with the Dart Sass CLI; this replaces the Vite build instructions in `SCSS_RULES.md` for
-this project type. Keep browser code in `assets/ts/` and bundle it with esbuild into one browser
-bundle. Mark Bootstrap as external in esbuild because it is loaded from the CDN.
-
-Use a browser TypeScript config with strict checking and DOM libraries, without Bun or Node types;
-esbuild emits the JavaScript, so TypeScript uses `noEmit`:
-
-```json
-{
-  "compilerOptions": {
-    "strict": true,
-    "lib": ["DOM", "ES2022"],
-    "noEmit": true
-  },
-  "include": ["assets/ts/**/*.ts"]
-}
-```
-
-Organize TypeScript into `core/`, reusable `widgets/`, and page-specific `pages/` modules, with
-`assets/ts/app.ts` as the entry point.
+- Treat the web server and application as separate configuration boundaries: document the public
+  document root, front-controller fallback, PHP runtime requirements, and any required rewrite or
+  proxy settings.
+- Keep secrets and environment-specific configuration on the target environment. Verify required
+  configuration at startup and fail with a useful server-side message rather than rendering a
+  partially configured page.
+- Build frontend assets before release and deploy the matching generated files with the PHP code.
+  Do not edit generated bundles by hand.
+- Run database migrations as an explicit deployment step only when the application owns a database.
+  Keep API migrations and deployments in the API project's release process.
+- Document writable runtime directories, uploaded media handling, cache clearing, and safe release
+  rollback where they apply. Do not make the entire application tree writable by the web server.
 
 ---
 
-## Testing
+## Tests
 
-Use unit tests for DTOs and services. Integration tests boot the Slim app and provide `ApiClient` a
-Guzzle `MockHandler`, so they need neither a live API nor a database. The `run_*` batch files must
-return PHPUnit's exit code; see `COMMON_RULES.md` → “Test Runner Scripts”.
-
-This project type has no database of its own, so its integration tests use the mocked API handler
-instead of the database mirror described in `php/APP.md` → “Required Batch Files”.
-
----
-
-## Required Batch Files
-
-Provide these scripts in `tools/`:
-
-| File | Purpose |
-|------|---------|
-| `run_tests.bat` | Run unit tests |
-| `run_integration_tests.bat` | Run integration tests |
-| `run_phpstan.bat` | Run PHPStan |
-| `run_cs_fixer.bat` | Check or fix PHP-CS-Fixer style |
-| `run_twig_lint.bat` | Lint Twig template syntax |
-| `build_css.bat` | Compile SCSS with Dart Sass |
-| `watch_css.bat` | Watch and compile SCSS changes |
-| `build_js.bat` | Bundle browser TypeScript with esbuild |
-| `watch_js.bat` | Watch and bundle TypeScript changes |
+- Test route registration, controller responses, template rendering, validation, and authorization
+  at the narrowest useful level.
+- Use temporary databases or the project's database test setup when exercising persistence. Stub
+  external API clients so tests do not depend on a live service.
+- Include integration coverage for the application's request-to-render path and for its error
+  responses. Keep the test runner's exit code intact in project scripts.
