@@ -83,22 +83,20 @@ Reusable templates for a project with no release system yet live in
 `python_setup_files/CREATE_NEW_RELEASE.template.md` for the full release process this
 recipe is the notes-only slice of.
 
-### 1. Next version & build number
+### 1. Next version
 
-Label = `<version>_<build>`. `version` is semver in `pyproject.toml` (bumped by hand);
-`build` is an integer in `build_version.txt` = the **last shipped** build (`0` = nothing
-shipped yet). Model is **bump first, ship next**: `/release:create-release` increments
-the counter and ships that number.
+Label = the version `<major>.<minor>.<patch>`, no build number. `pyproject.toml`
+`[project] version` holds the **last shipped** version. Model is **bump first, ship
+next**: `/release:create-release` (or `release-tool create` with `versioning = semver`)
+bumps the last segment and ships that version.
 
 ```
-tools\build_get.bat         :: current (last shipped) build, e.g. 21
-tools\version_get.bat       :: <version>_<lastShippedBuild>
+tools\version_get.bat       :: last shipped version, e.g. 0.1.3
 ```
 
-Author these notes for the **next** label = `<version>_<build_get + 1>` (e.g. if
-`build_get` is `21`, the folder is `<version>_22`). `/release:create-release` does the
-actual `build_increment` at build time. Edit `pyproject.toml` `version` by hand for a
-semver bump.
+Author these notes for the **next** version = last segment + 1 (e.g. if
+`version_get` prints `0.1.3`, the folder is `0.1.4`). Older projects that still have
+`build_version.txt` use `<version>_<build_get + 1>` instead — follow the project doc.
 
 ### 2. Anchor specifics
 
@@ -117,7 +115,8 @@ behavior into the same note.
 
 ### 3. Release-notes subdirectory
 
-`release_notes/<version>_<build>/`, e.g. `release_notes/0.1.0_22/`.
+`release_notes/<version>/`, e.g. `release_notes/0.1.4/` (older build-counter
+projects: `release_notes/<version>_<build>/`).
 
 ### 4. `en.json` schema
 
@@ -125,8 +124,7 @@ The actual note is the **`notes`** array (one user-facing bullet per item):
 
 ```json
 {
-  "version": "0.1.0",
-  "build": 22,
+  "version": "0.1.4",
   "date": "YYYY-MM-DD",
   "title": "Short headline",
   "notes": [

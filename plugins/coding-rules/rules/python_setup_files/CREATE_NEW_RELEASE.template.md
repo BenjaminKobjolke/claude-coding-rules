@@ -1,32 +1,30 @@
 # Creating a New Release (template)
 
 Copy this to `docs/CREATE_NEW_RELEASE.md` and fill in the `<...>` placeholders for
-your project. It pairs with the `tools/` bats and `tools/release/build_number.py`
+your project. It pairs with the `tools/` bats and `tools/release/version_number.py`
 from `python_setup_files/`.
 
-A release is identified by the label **`<version>_<build>`**, e.g. `0.1.0_22`:
-- `version` (semver) — `pyproject.toml` `[project] version`, bumped by hand.
-- `build` (integer) — `build_version.txt` at the project root.
+A release is identified by its version **`<major>.<minor>.<patch>`**, e.g. `0.1.4` —
+the `pyproject.toml` `[project] version`, which holds the **last shipped** version.
+Each release bumps its last segment (`0.1.3` -> `0.1.4`); there is no build number.
+To start a new minor or major line, set the version by hand after a release (e.g.
+`0.2.0`); the next release then ships `0.2.1`.
 
-## 1. Version & build number
+## 1. Version
 
 ```bat
-tools\version_get.bat       :: prints <version>_<build>
-tools\build_get.bat         :: prints the build number
-tools\build_increment.bat   :: bump build before a release
-tools\build_decrement.bat   :: undo
+tools\version_get.bat         :: prints the version, e.g. 0.1.4
+tools\version_increment.bat   :: bump the last segment before a release
+tools\version_decrement.bat   :: undo
 ```
-
-Bump the semver `version` in `pyproject.toml` by hand for feature/breaking changes.
 
 ## 2. Release notes + en.json
 
-Create `release_notes/<version>_<build>/en.json` (the `notes` array is the text):
+Create `release_notes/<version>/en.json` (the `notes` array is the text):
 
 ```json
 {
   "version": "<version>",
-  "build": <build>,
   "date": "YYYY-MM-DD",
   "title": "Short headline",
   "notes": ["First change", "Second change"]
@@ -46,7 +44,7 @@ mandatory — without it non-English users see English.
 `copy_metadata(<pkg>)`), so the in-app view ships inside the binary.
 
 ```bat
-tools\build_increment.bat
+tools\version_increment.bat
 tools\compile_exe.bat
 tools\build_installer.bat
 ```
@@ -56,5 +54,6 @@ freezes, `build_installer.bat` packages; they are deliberately not chained.
 
 ## 5. In-app Release Notes view
 
-Location: `<where in the app>`. Loads all releases newest-first, shows the latest
-first with Older/Newer navigation, falls back to `en.json` when a locale is missing.
+Location: `<where in the app>`. Loads all releases, sorts them by version (numeric
+segments, newest first), shows the latest first with Older/Newer navigation, falls
+back to `en.json` when a locale is missing.

@@ -1,5 +1,5 @@
 # Version
-1
+3
 
 Increase this version number whenever this rule file changes.
 
@@ -19,21 +19,30 @@ Reusable pieces in `python_setup_files/`:
 
 - `installer/setup.nsi.template` — the script; fill in app name, exe name, company.
 - `tools/build_installer.bat` — packages an existing `dist/<App>/` into the setup exe.
-- `tools/sign_exe.bat` — code-signs one exe via the XIDA network-share handshake.
+- `tools/sign_exe.bat` — code-signs one exe in place with
+  `release-tool sign <exe> <profile>`.
+- `tools/config_example.bat` — copy to the gitignored `tools/config.bat`; sets
+  `RELEASE_TOOL_DIR` (release-tool checkout) and `SIGNING_PROFILE` (a section of
+  `release-tool\signing_profiles.ini`, e.g. `xida remote`).
 
 Conventions:
 
 - **Two separate bats, no chaining.** `tools/compile_exe.bat` freezes;
   `tools/build_installer.bat` packages and fails with "run compile_exe.bat first" if
   `dist/` is missing. Neither bat calls the other.
-- **Version and build reach the installer as `/D` defines** from the bat
-  (`/DVERSION= /DBUILD= /DSRCDIR= /DOUTFILE=`), never via the exe's version resource.
+- **The version reaches the installer as a `/D` define** from the bat
+  (`/DVERSION= /DSRCDIR= /DOUTFILE=`), never via the exe's version resource.
   A bare PyInstaller CLI build has no `--version-file`, so there is no resource to
-  read — the bat owns the label. `tools/version_get.bat` already prints the full
-  `<version>_<build>` label, so read it once and split on `_` rather than also
-  calling `build_get.bat`.
-- **Output** = `dist/<App>Setup_<version>_<build>.exe`, so the filename carries the
-  release label (see `python/RELEASE.md`).
+  read — the bat owns the version, read once from `tools/version_get.bat`.
+  `VIProductVersion` needs four numeric parts, so the script appends `.0` to the
+  three-part semver version.
+- **Output** = `dist/<App>Setup_<version>.exe`, so the filename carries the
+  release version (see `python/RELEASE.md`).
+- **Never name an installer `<AppExe>.exe`** — not the versioned file, not a
+  stable-name copy for a download URL. The installer runs
+  `taskkill /F /IM "<AppExe>.exe"` to close a running instance, which then kills the
+  installer itself: it reports installing, closes, and writes no files. Use
+  `<App>Setup.exe` for a stable name.
 - **Exclude the app's own runtime files from the payload**:
   `File /r /x settings.json /x sessions.db "${SRCDIR}\*.*"`. PyInstaller builds into
   `dist/`, and every local test run of that exe drops its config and database right
@@ -54,11 +63,16 @@ Conventions:
 - **Registry** goes under `HKCU` (per-user install) with `DisplayName`,
   `DisplayVersion` = the full label, `Publisher`, `DisplayIcon`, `InstallLocation`,
   `UninstallString`, `EstimatedSize`.
-- **Signing is opt-in** via `build_installer.bat --sign`, off by default: the XIDA
-  handshake needs the `//XIDA-SERVER` share and takes ~5 minutes per binary, so local
-  test builds stay unsigned. When on, sign the app exe **before** packaging (the
-  signed binary must be the one inside) and the setup exe after. `sign_exe.bat` `cd`s
-  into the release-tool checkout, so it must be handed an **absolute** path.
+- **Signing is opt-in** via `build_installer.bat --sign`, off by default: it needs
+  the signing server, so local test builds stay unsigned. When on, sign the app exe
+  **before** packaging (the signed binary must be the one inside) and the setup exe
+  after. `sign_exe.bat` `cd`s into the release-tool checkout, so it must be handed
+  an **absolute** path.
+- **Sign through the profile CLI, never by constructing `PreSignConfig` yourself.**
+  release-tool owns the signing method (SafeNet `remote` or network share) and the
+  config field order; an inline `PreSignConfig(True, ...)` call broke when the fields
+  were reordered (`Network path not accessible: XIDA GmbH`). Test a profile with
+  release-tool's `tools\test_signing.bat "<profile>"`.
 - **Test the installer silently**, no clicking: `Setup.exe /S`, then
   `Uninstall.exe /S`. Check the install dir contents, the Start Menu shortcut, the
   `HKCU` key, that the installed app can write its database, and that a reinstall

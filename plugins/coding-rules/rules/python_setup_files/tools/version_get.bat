@@ -1,3 +1,3 @@
 @echo off
-REM Print the full release label <version>_<build> (version from pyproject.toml).
-uv run python "%~dp0release\build_number.py" label
+REM Print the release version (pyproject.toml [project] version).
+uv run python "%~dp0release\version_number.py" get

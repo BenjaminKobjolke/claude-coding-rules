@@ -10,9 +10,9 @@ echo.
 ::
 :: Usage: build_installer.bat [--sign]
 ::   --sign  code-sign the app exe (before packaging) and the setup exe (after)
-::           via the XIDA network-share handshake. Off by default: it needs the
-::           //XIDA-SERVER share and takes ~5 minutes per binary, so plain local
-::           test builds stay unsigned.
+::           via tools\sign_exe.bat (release-tool signing profile). Off by
+::           default: it needs the signing server, so plain local test builds
+::           stay unsigned.
 
 setlocal
 set "SIGN="
@@ -35,20 +35,15 @@ if not exist "%MAKENSIS%" (
     goto :fail
 )
 
-:: version_get.bat prints the full label <version>_<build>, so one uv call covers
-:: both defines - split it rather than also shelling out to build_get.bat.
-for /f "usebackq delims=" %%I in (`call "%~dp0version_get.bat"`) do set "LABEL=%%I"
-for /f "tokens=1,2 delims=_" %%A in ("%LABEL%") do (
-    set "VERSION=%%A"
-    set "BUILD=%%B"
-)
+:: version_get.bat prints the release version (pyproject.toml), e.g. 0.1.4.
+for /f "usebackq delims=" %%I in (`call "%~dp0version_get.bat"`) do set "VERSION=%%I"
 if "%VERSION%"=="" (
-    echo ERROR: could not read the release label from tools\version_get.bat
+    echo ERROR: could not read the release version from tools\version_get.bat
     goto :fail
 )
 
-set "OUTFILE=%CD%\dist\<AppExe>Setup_%LABEL%.exe"
-echo Version: %VERSION%   Build: %BUILD%
+set "OUTFILE=%CD%\dist\<AppExe>Setup_%VERSION%.exe"
+echo Version: %VERSION%
 echo.
 
 :: Sign the app exe BEFORE packaging - the signed binary is the one that has to
@@ -57,7 +52,7 @@ if defined SIGN (
     call "%~dp0sign_exe.bat" "%APPDIR%\<AppExe>.exe" || goto :fail
 )
 
-"%MAKENSIS%" /DVERSION=%VERSION% /DBUILD=%BUILD% /DSRCDIR="%APPDIR%" /DOUTFILE="%OUTFILE%" "%CD%\installer\setup.nsi"
+"%MAKENSIS%" /DVERSION=%VERSION% /DSRCDIR="%APPDIR%" /DOUTFILE="%OUTFILE%" "%CD%\installer\setup.nsi"
 if errorlevel 1 goto :fail
 
 if defined SIGN (

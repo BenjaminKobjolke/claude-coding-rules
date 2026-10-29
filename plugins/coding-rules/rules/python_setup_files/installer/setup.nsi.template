@@ -1,11 +1,11 @@
 ; <App Name> - Windows installer.
 ; TEMPLATE: replace every <...> placeholder before use.
 ;
-; Built by tools\build_installer.bat, which passes VERSION, BUILD, SRCDIR and
-; OUTFILE as /D defines. VERSION/BUILD deliberately do NOT come from the exe's
-; version resource (fman reads them with !getdllversion): PyInstaller is invoked
-; here as a bare CLI with no --version-file, so there is no resource to read.
-; The bat is the single place that knows the release label.
+; Built by tools\build_installer.bat, which passes VERSION, SRCDIR and OUTFILE
+; as /D defines. VERSION deliberately does NOT come from the exe's version
+; resource (fman reads it with !getdllversion): PyInstaller is invoked here as a
+; bare CLI with no --version-file, so there is no resource to read.
+; The bat is the single place that knows the release version.
 
 !ifndef VERSION
   !error "VERSION not defined - build via tools\build_installer.bat, not makensis directly"
@@ -15,7 +15,6 @@
 !define EXENAME   "<AppExe>.exe"
 !define COMPANY   "<Company>"
 !define REGKEY    "Software\Microsoft\Windows\CurrentVersion\Uninstall\<AppExe>"
-!define LABEL     "${VERSION}_${BUILD}"
 
 ; ponytail: no custom installer icon. assets\icon.png is a PNG and MUI_ICON needs
 ; an .ico - add assets\icon.ico plus !define MUI_ICON if the default ever grates.
@@ -32,11 +31,12 @@ RequestExecutionLevel user
 InstallDir "$LOCALAPPDATA\<AppExe>"
 InstallDirRegKey HKCU "${REGKEY}" "InstallLocation"
 
-VIProductVersion "${VERSION}.${BUILD}"
+; VIProductVersion needs four numeric parts; the semver version has three.
+VIProductVersion "${VERSION}.0"
 VIAddVersionKey "ProductName"     "${APPNAME}"
 VIAddVersionKey "CompanyName"     "${COMPANY}"
 VIAddVersionKey "FileDescription" "${APPNAME} Setup"
-VIAddVersionKey "FileVersion"     "${LABEL}"
+VIAddVersionKey "FileVersion"     "${VERSION}"
 VIAddVersionKey "LegalCopyright"  "${COMPANY}"
 
 !include "MUI2.nsh"
@@ -72,7 +72,7 @@ Section "${APPNAME}" SEC_APP
   WriteUninstaller "$INSTDIR\Uninstall.exe"
 
   WriteRegStr HKCU "${REGKEY}" "DisplayName"     "${APPNAME}"
-  WriteRegStr HKCU "${REGKEY}" "DisplayVersion"  "${LABEL}"
+  WriteRegStr HKCU "${REGKEY}" "DisplayVersion"  "${VERSION}"
   WriteRegStr HKCU "${REGKEY}" "Publisher"       "${COMPANY}"
   WriteRegStr HKCU "${REGKEY}" "DisplayIcon"     "$INSTDIR\${EXENAME}"
   WriteRegStr HKCU "${REGKEY}" "InstallLocation" "$INSTDIR"
