@@ -32,8 +32,11 @@ Always read `${CLAUDE_PLUGIN_ROOT}/rules/COMMON_RULES.md` and `${CLAUDE_PLUGIN_R
 - Python optional rules: `python/WEB_TEMPLATES.md` for Jinja2 or Flask web templates;
   `python/GUI.md` for PySide6 desktop apps; `python/LOCALIZATION.md` for translated
   content; `python/RELEASE.md` for release tooling; `python/INSTALLER.md` for NSIS
-  installers; `python/DATABASE.md` for SQLAlchemy. On first setup, pick by project
-  type and ask when unsure.
+  installers; `python/DATABASE.md` for SQLAlchemy. Use
+  `project_type/PYTHON_DESKTOP_PLUGIN.md` for Python extensions loaded inside a desktop
+  application's plugin runtime. Pair it with `PYTHON_RULES.md`; skip it for standalone
+  desktop applications, which use `python/GUI.md` when built with PySide6. On first setup,
+  pick by project type and ask when unsure.
 - C# optional rules: `csharp/WINFORMS.md` for Windows Forms desktop apps
   (`System.Windows.Forms` / `<UseWindowsForms>` in the `.csproj`); skip it for console
   tools, services and libraries. An existing C# project crossing the v2 split keeps it
