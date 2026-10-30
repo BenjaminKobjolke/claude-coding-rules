@@ -1,5 +1,5 @@
 # Version
-10
+11
 
 Increase this version number whenever this rule file changes.
 
@@ -921,6 +921,22 @@ the general application log.
 
 ## Test Infrastructure
 <!-- steps: review, code -->
+
+### Automated Client Test Accounts and Fixtures
+
+Provide a repeatable way to create and reset a dedicated test account and representative sample
+records for automated client checks. Keep these persistent, resettable fixtures separate from the
+disposable users that API-owned tests create and clean up for each test run.
+
+The account and its sample records must be created and reset through the local API using a
+separate local test database. Setup must refuse to run when the API or database configuration
+could target production or real-user data, and reset only records owned by these fixtures.
+
+Give the account only the permissions the client checks need. Deliver its credential privately
+through ignored local configuration or a process environment variable, never in tracked files or
+logs. Before automation uses it, authenticate and verify that the returned identity is the
+dedicated test account. These requirements apply regardless of the API's authentication scheme
+and do not require a public provisioning endpoint.
 
 ### Base Test Class
 
