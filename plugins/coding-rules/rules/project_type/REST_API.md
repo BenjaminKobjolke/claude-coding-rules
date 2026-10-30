@@ -1,5 +1,5 @@
 # Version
-11
+12
 
 Increase this version number whenever this rule file changes.
 
@@ -34,13 +34,17 @@ project/
 │   ├── database.php            # Database connection (gitignored)
 │   └── database.php.example    # Template for database.php
 ├── docs/
+│   ├── FATAL_ERROR_LOG.md      # Fatal PHP errors before Slim starts
 │   └── endpoints/              # Endpoint documentation (one .md per endpoint + README.md index)
 ├── hoppscotch/                 # API testing collections (one .json per feature group)
 ├── lang/                       # Localization JSON files (if needed)
 ├── public/
 │   ├── .htaccess               # rewrite + mod_deflate for JSON
+│   ├── fatal-log.php           # Standalone fatal error log viewer
 │   └── index.php               # Application entry point
 ├── src/
+│   ├── Bootstrap/
+│   │   └── FatalErrorLog.php   # Early fatal error recorder
 │   ├── Config/
 │   │   └── Routes.php          # Route definitions
 │   ├── Container.php           # PSR-11 DI Container
@@ -74,6 +78,35 @@ project/
 
 ---
 
+## Fatal Error Log (BINDING)
+<!-- steps: review, code -->
+
+A fatal PHP error before Slim starts can leave the client with an empty `500` and no application
+log entry. Every API must register a standalone recorder before Composer's autoloader so it can
+record crashes that prevent the rest of the application from booting.
+
+- Keep the recorder in `src/Bootstrap/FatalErrorLog.php`. It uses only the PHP standard library
+  and is loaded by `require_once` with its file path; do not load it through Composer.
+- Register its shutdown handler in `public/index.php` immediately after
+  `declare(strict_types=1);`, before `vendor/autoload.php`.
+- Provide a standalone `public/fatal-log.php` viewer that does not use Twig, the Container, or the
+  autoloader. The page must remain usable when `vendor/` is broken.
+- Accept the viewer password only in a `POST` field, read the expected value from
+  `admin_token_password`, and compare non-empty values with `hash_equals`. A missing or empty
+  configured password disables the viewer; a wrong password returns `403`.
+- Escape the displayed log. Support `POST format=text` as a `text/plain` response for scripts.
+  Send `Cache-Control: no-store` and `X-Robots-Tag: noindex` headers.
+- Limit the active log to 1 MB by rotating it to one generation (`.1`) before the next write when
+  it is oversized. The viewer's clear action empties the active log and removes the rotated file.
+- This viewer is the sanctioned exception to the Twig rule: Twig depends on Composer, which may
+  be the source of the fatal error. It also has no rate limiter because this early-boot page must
+  not depend on the database-backed API limiter; the password remains its access guard.
+
+The example class, viewer, test, documentation and installation instructions are in
+`php_setup_files/fatal_error_log/`. Turbo Habits API is the reference implementation.
+
+---
+
 ## Entry Point
 <!-- steps: review, code -->
 
@@ -83,6 +116,10 @@ project/
 <?php
 
 declare(strict_types=1);
+
+// Register before Composer: a broken vendor/ can fail before the app logger is available.
+require_once __DIR__ . '/../src/Bootstrap/FatalErrorLog.php';
+\App\Bootstrap\FatalErrorLog::register();
 
 require __DIR__ . '/../vendor/autoload.php';
 
@@ -1163,6 +1200,7 @@ changes. Examples:
 
 ```
 docs/
+├── FATAL_ERROR_LOG.md     # Fatal PHP errors before Slim starts
 ├── TIMEZONE.md            # DATE handling, UTC-noon convention
 ├── CRON.md                # Cron endpoints, queue drain, scheduling
 ├── DEEPLINKS.md           # App deep-link URL schemes

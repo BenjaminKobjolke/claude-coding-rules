@@ -24,7 +24,7 @@
   "CREATE_NEW_RULES.md": 3,
   "project_type/FRONTEND.md": 4,
   "project_type/SERVER_RENDERED_FRONTEND.md": 3,
-  "project_type/REST_API.md": 11,
+  "project_type/REST_API.md": 12,
   "project_type/rest_api/JWT_AUTH.md": 1,
   "project_type/rest_api/API_KEY_AUTH.md": 1,
   "implementation_flow_addons/graphify.md": 15,

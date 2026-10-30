@@ -1,6 +1,11 @@
 # PHP Setup Files
 
-Templated PHP tooling. Two independent kits:
+Templated PHP tooling and setup kits:
+
+## Fatal error log
+
+See [`fatal_error_log/README.md`](fatal_error_log/README.md) for the standalone early-fatal
+recorder, password-protected viewer, shipped test and project setup instructions.
 
 ## Fast test suite (any Slim + Cycle API)
 
