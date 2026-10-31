@@ -1,5 +1,5 @@
 # Version
-12
+13
 
 Increase this version number whenever this rule file changes.
 
@@ -961,19 +961,16 @@ the general application log.
 
 ### Automated Client Test Accounts and Fixtures
 
-Provide a repeatable way to create and reset a dedicated test account and representative sample
-records for automated client checks. Keep these persistent, resettable fixtures separate from the
-disposable users that API-owned tests create and clean up for each test run.
+Use one local-only `POST /api/v1/demo/seed` call to create or replace a demo account and the sample records its client screenshots need; an existing API may keep its route name. Keep these persistent fixtures separate from disposable users created for each API test.
 
-The account and its sample records must be created and reset through the local API using a
-separate local test database. Setup must refuse to run when the API or database configuration
-could target production or real-user data, and reset only records owned by these fixtures.
+- The route is off by default (`demo_seed_enabled` in local config), returns the same 404 as an unknown route when off, and is never enabled on a server. Refuse seeding unless the configured API root is loopback.
+- Require `admin_password` in the JSON body to match the configured administrator password. Use a reserved machine email (`demo-<uuid>@machine.local` for new APIs) and only the permissions the screenshots need.
+- Each seed retires earlier demo accounts (disable them, remove their tokens and files) and touches only their owned records in the local API's own database. Never use production or real-user data; a separate database is not required.
+- Return `{"user": {...}, "token": "..."}` with a fresh token each time. Never log the token or store a fixture credential separately.
+- Seed fixed, realistic data for every registered screenshot state and serve committed demo assets by relative URL. Add each new screen state to the seed in the same change.
+- Document the records and their screenshot purpose per screen in `docs/DEMO_SEED.md`, the endpoint documentation and a Hoppscotch request. Integration tests cover disabled (404), wrong password, non-loopback refusal and replacement on repeat.
 
-Give the account only the permissions the client checks need. Deliver its credential privately
-through ignored local configuration or a process environment variable, never in tracked files or
-logs. Before automation uses it, authenticate and verify that the returned identity is the
-dedicated test account. These requirements apply regardless of the API's authentication scheme
-and do not require a public provisioning endpoint.
+The client-side setup is in [Flutter App Rules](../flutter/APP.md) → “Local Demo Accounts and Screenshots”.
 
 ### Base Test Class
 

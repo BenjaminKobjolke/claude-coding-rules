@@ -1,5 +1,5 @@
 # Version
-2
+3
 
 Increase this version number whenever this rule file changes.
 
@@ -466,6 +466,20 @@ notification at the launcher icon renders a featureless white blob in the status
 bar.
 
 Each project records its own paths and wiring in `docs/ICONS.md`.
+
+---
+
+---
+
+## Local Demo Accounts and Screenshots
+
+Use the `automated-application-screenshots` tool and its Flutter connector for screenshots and live screen iteration. Configure `tools/create_media/<app>.json` with a `live` block. Register screenshot screens in `lib/demos/live_screen_registry.dart` by name; use `name@section` for a target inside a screen. Register every new screen and tap-only state in the same change.
+
+Copy the launcher kit from [`../flutter_setup_files/demo_screenshots/`](../flutter_setup_files/demo_screenshots/) and follow its README. The launcher seeds a fresh account on every app launch through the API demo seed route ([REST API Rules](../project_type/REST_API.md) → “Automated Client Test Accounts and Fixtures”), verifies identity through `/auth/me`, and passes `--dart-define=DEMO_ACCOUNT_TOKEN`. Never store the token. Do not add a separate setup script or stored token; the only one-time setup is the local API flag and `DEMO_ADMIN_PASSWORD` in ignored `tools/config.bat`.
+
+Read `API_SERVER_URL` only outside release builds (`kReleaseMode ? live : String.fromEnvironment('API_SERVER_URL', defaultValue: live)`); release builds always use production. Allow cleartext HTTP only in `android/app/src/debug/AndroidManifest.xml`. The launcher refuses non-loopback API URLs. The Android emulator reaches the host computer at `10.0.2.2`.
+
+Record setup, screen names and required seed states in `docs/DEMOS_RECORD.md`.
 
 ---
 
