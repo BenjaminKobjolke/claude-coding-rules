@@ -232,9 +232,10 @@ put the icon to the left.
 
 ## Verifying it — screenshots without a human
 
-Render pages offscreen and save PNGs; it is deterministic, safe, and needs no window
-focus. Fonts fall back to boxes under `offscreen`, which is fine — you are checking
-geometry, color, and layout, and a real screenshot confirms the type afterwards.
+Render pages offscreen and save PNGs for quick checks; it is deterministic, safe, and
+needs no window focus. Fonts fall back to boxes under `offscreen`, which is fine —
+you are checking geometry, color, and layout, and a real screenshot confirms the type
+afterwards.
 
 ```python
 os.environ["QT_QPA_PLATFORM"] = "offscreen"
@@ -253,9 +254,14 @@ The same harness measures the bugs the eye argues about:
 print(button.minimumSizeHint(), scroll_area.horizontalScrollBar().maximum())
 ```
 
-**Never drive the real window with synthetic mouse clicks** (`SetCursorPos` +
-`mouse_event`) to take screenshots. The moment the window loses focus those clicks land
-in whatever app is underneath.
+For screenshots of the real running window — task verification or promotional images —
+use the `automated-application-screenshots` tool with its Python connector. It drives
+the app from inside its own process (calling `button.click()`, `line_edit.setText()`),
+so nothing can land in another application.
+
+**Never send OS-level synthetic input** (`SetCursorPos`, `mouse_event`, `SendInput`,
+`pyautogui`) to the real window. The moment the window loses focus that input lands in
+whatever app is underneath. This forbids the input method, not screenshots.
 
 ## Tests worth writing
 

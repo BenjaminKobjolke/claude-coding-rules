@@ -1,5 +1,5 @@
 # Version
-2
+3
 
 Increase this version number whenever this rule file changes.
 
@@ -174,13 +174,20 @@ fragments — translate the whole sentence with placeholders.
 
 A restyle is not done because the tests pass — tests do not look at the screen.
 
-- Render each screen to an image (offscreen/headless is fine and deterministic) and
-  actually look at all of them after a change.
+- Render each screen to an image and actually look at all of them after a change.
+  Offscreen/headless rendering is fine for quick, deterministic checks.
+- Automatic screenshots of the real running app are allowed and wanted — to verify a
+  task and to produce promotional images (store pages, manuals). Take them with the
+  `automated-application-screenshots` tool and the app's connector (Python, Flutter or
+  web). The connector drives the app from inside its own process — calling a button's
+  click, setting a field's text, opening a screen — so no input can reach another
+  application.
 - Check the app at its smallest supported size, not just the size it opens at.
 - Automate what an image cannot assert: no minimum-size rule in the theme, a focus style
   on every control, a recolored icon that still has pixels.
-- Never drive a real window with synthetic mouse clicks to capture screenshots — the
-  moment focus moves, those clicks land in someone else's application.
+- Never send OS-level synthetic mouse or keyboard input (moving the cursor, injected
+  clicks or key presses) to a real window — the moment focus moves, that input lands in
+  someone else's application. This forbids the input method, not screenshots.
 
 ---
 
