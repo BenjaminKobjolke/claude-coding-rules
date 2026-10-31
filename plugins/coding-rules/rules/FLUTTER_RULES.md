@@ -1,5 +1,5 @@
 # Version
-15
+16
 
 Increase this version number whenever this rule file changes.
 
@@ -183,9 +183,10 @@ third-party libraries, their confirmed versions, and a reference implementation 
 
 - If a listed library already covers the job, use it. Do not hand-roll an equivalent and do not
   introduce a competing package for the same concern.
-- If nothing listed covers it, confirm the version with the user (see `COMMON_RULES.md` →
-  "Confirm Dependency Versions"), then add the library to `LIBRARIES.md` with a pointer to the
-  first real implementation, so the next project picks it up automatically.
+- If nothing listed covers it, choose the version as `COMMON_RULES.md` → "Confirm Dependency
+  Versions" describes (latest compatible stable, ask only on a real tradeoff), then add the
+  library to `LIBRARIES.md` with a pointer to the first real implementation, so the next project
+  picks it up automatically.
 
 This is the same "check before you build" rule as `COMMON_RULES.md` → "Reusable Tooling",
 applied to dependencies instead of scripts.

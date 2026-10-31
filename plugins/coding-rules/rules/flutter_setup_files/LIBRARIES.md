@@ -1,5 +1,5 @@
 # Version
-3
+4
 
 # Flutter Libraries
 
@@ -7,9 +7,9 @@ The approved third-party libraries for Flutter projects. **Check this file befor
 any new feature** — if a library here already covers the job, use it instead of hand-rolling or
 introducing an alternative.
 
-Adding something new? Confirm the version with the user first (see
-[`../COMMON_RULES.md`](../COMMON_RULES.md) → "Confirm Dependency Versions"), then add it to the
-table below with a reference implementation, so the next project picks it up automatically.
+Adding something new? Choose the version as [`../COMMON_RULES.md`](../COMMON_RULES.md) →
+"Confirm Dependency Versions" describes, then add it to the table below with a reference
+implementation, so the next project picks it up automatically.
 
 ## What's included
 
