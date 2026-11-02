@@ -1,5 +1,5 @@
 # Version
-11
+12
 
 Increase this version number whenever this rule file changes.
 
@@ -71,6 +71,13 @@ Pair with `PHP_RULES.md` and `php/APP.md`. Add `DESIGN_RULES.md` because the pro
 add the rules for asset languages and tools it uses, such as `SCSS_RULES.md` or
 `TYPESCRIPT_RULES.md`. Do not pair this type with the REST API or frontend SPA rules for the same
 server-rendered application.
+
+## Landing Page Content — `project_type/LANDING_PAGE_CONTENT.md`
+
+Content-only repositories mounted as the `sites/` submodule of a multi-site PHP landing-page
+framework. Pair with `COMMON_RULES.md` and `DESIGN_RULES.md`; add `SCSS_RULES.md` only when a
+`{site}/scss/` folder exists. Skip `PHP_RULES.md` and `php/APP.md`; the framework itself uses the
+server-rendered type.
 
 ## Flutter app vs. library
 
