@@ -27,7 +27,8 @@ Always read `${CLAUDE_PLUGIN_ROOT}/rules/COMMON_RULES.md` and `${CLAUDE_PLUGIN_R
 ## Phase A — Determine applicable rule files
 
 - Always: `COMMON_RULES.md` and `IMPLEMENTATION_FLOW.md`
-- Language-specific rules: `PHP_RULES.md`, `PYTHON_RULES.md`, `CSHARP_RULES.md`, `CPP_RULES.md`, `JAVASCRIPT_RULES.md` (Bun CLI apps; also add `TYPESCRIPT_RULES.md` for TypeScript), `TYPESCRIPT_RULES.md` (any TypeScript project), `FLUTTER_RULES.md`, `KOTLIN_RULES.md` (Kotlin / native Android Gradle projects, app or library; setup files in `kotlin_setup_files/`), `SVELTE_RULES.md`, `SCSS_RULES.md`, `ARDUINO_RULES.md`, `AUTOHOTKEY_RULES.md`, `UNITY_CSHARP_RULES.md`, `WORDPRESS_RULES.md`
+- Language-specific rules: `PHP_RULES.md`, `PYTHON_RULES.md`, `CSHARP_RULES.md`, `CPP_RULES.md`, `RUST_RULES.md` (Rust Cargo projects with a `Cargo.toml` containing `[package]` or `[workspace]`, at the repository root or in a subfolder such as `src/`), `JAVASCRIPT_RULES.md` (Bun CLI apps; also add `TYPESCRIPT_RULES.md` for TypeScript), `TYPESCRIPT_RULES.md` (any TypeScript project), `FLUTTER_RULES.md`, `KOTLIN_RULES.md` (Kotlin / native Android Gradle projects, app or library; setup files in `kotlin_setup_files/`), `SVELTE_RULES.md`, `SCSS_RULES.md`, `ARDUINO_RULES.md`, `AUTOHOTKEY_RULES.md`, `UNITY_CSHARP_RULES.md`, `WORDPRESS_RULES.md`
+- Rust optional rules: add `rust/SLINT.md` when a workspace `Cargo.toml` depends on `slint`.
 - TypeScript optional rules: `typescript/PNPM_WORKSPACE.md` when `pnpm-workspace.yaml` exists (Node runtime and vitest); when applying it, skip `JAVASCRIPT_RULES.md`. Add `typescript/ELECTRON.md` when a `package.json` depends on `electron`.
 - Python optional rules: `python/WEB_TEMPLATES.md` for Jinja2 or Flask web templates;
   `python/GUI.md` for PySide6 desktop apps; `python/LOCALIZATION.md` for translated
@@ -59,7 +60,9 @@ Always read `${CLAUDE_PLUGIN_ROOT}/rules/COMMON_RULES.md` and `${CLAUDE_PLUGIN_R
   graphify is two files opted into together: `implementation_flow_addons/graphify.md` and
   `implementation_flow_addons/graphify_flow.md`. `implementation_flow_addons/mcp_server.md` is a
   single file (lands in `CODING_RULES.md`) — ask about it for PHP REST APIs that expose, or
-  should expose, an MCP server via `xida/api-mcp`
+  should expose, an MCP server via `xida/api-mcp`. `implementation_flow_addons/mcp_server_rust.md`
+  is the single-file addon to ask about for Rust projects serving MCP over stdio (a crate
+  implementing `initialize` / `tools/list`, or depending on an MCP SDK crate such as `rmcp`).
 
 If `<project>/coding-rules.json` already exists, read it: its `rules` map is the
 project's declared selection (keys are paths relative to `rules/`, e.g. `PYTHON_RULES.md`,

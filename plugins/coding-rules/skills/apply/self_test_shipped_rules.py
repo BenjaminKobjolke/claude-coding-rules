@@ -9,6 +9,7 @@ from file_io import read_text
 from file_io import save_json
 from pathlib import Path
 from rule_migration import project_uses
+from self_test_language_rules import self_test as test_language_rules
 from self_test_rest_api_split import self_test as test_rest_api_split
 import self_test_server_rendered_frontend as server_rendered_test
 import self_test_landing_page_content as landing_page_content_test
@@ -180,23 +181,6 @@ def self_test():
 
     shipped_root = Path(__file__).resolve().parents[2]
     shipped_versions = load_json(shipped_root / "rules" / "versions.json", {})
-    assert "CPP_RULES.md" in shipped_versions
-    assert "CPP_RULES.md" in read_text(shipped_root / "skills" / "apply" / "SKILL.md")
-
-    delta_project = Path(tempfile.mkdtemp())
-    first_delta = run(delta_project, shipped_root, ["COMMON_RULES.md"], "neither")
-    assert any(item["rule"] == "COMMON_RULES.md" and item["status"] == "updated"
-               for item in first_delta["rules"]), first_delta
-    second_delta = run(
-        delta_project, shipped_root, ["COMMON_RULES.md", "CPP_RULES.md"], "neither"
-    )
-    delta_statuses = {item["rule"]: item["status"] for item in second_delta["rules"]}
-    assert delta_statuses["CPP_RULES.md"] == "updated", second_delta
-    assert delta_statuses["COMMON_RULES.md"] == "unchanged", second_delta
-    delta_manifest = load_json(delta_project / "coding-rules.json", {})
-    assert "CPP_RULES.md" in delta_manifest["rules"], delta_manifest
-    assert "# C++ Rules" in read_text(delta_project / "CODING_RULES.md")
-
     runner_flags = {
         "flutter_setup_files/tools/run_tests.bat": "flutter test --reporter expanded",
         "kotlin_setup_files/tools/run_tests.bat": "testDebugUnitTest",
@@ -295,6 +279,7 @@ def self_test():
     ))
 
     test_rest_api_split()
+    test_language_rules()
 
     server_rendered_test.self_test(shipped_root, shipped_versions)
     landing_page_content_test.self_test(shipped_root, shipped_versions)
