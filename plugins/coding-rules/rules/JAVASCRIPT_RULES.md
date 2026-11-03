@@ -1,5 +1,5 @@
 # Version
-1
+2
 
 Increase this version number whenever this rule file changes.
 
@@ -342,3 +342,9 @@ export const __test__ = { normalizeSurfaceState, shouldRetry };
 5. **Zero runtime dependencies by default** — Bun + `node:` builtins cover
    fs/path/os/fetch. Every new package needs the COMMON_RULES version
    confirmation, and a few lines of stdlib beat a dependency.
+6. **Code analysis scripts** — when a project uses cli-code-analyzer, copy
+   `javascript_setup_files/tools/analyze_code_config.example.bat`,
+   `analyze_code.bat`, and `analyze_changed_and_new_files.bat` into its
+   `tools/` folder. Set the analyzer path and `LANGUAGE=javascript` in the
+   local config, keep that config gitignored, and set `fail_on` to `warning`
+   in `code_analysis_rules.json`.

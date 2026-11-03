@@ -7,7 +7,7 @@
   "CSHARP_RULES.md": 2,
   "CPP_RULES.md": 1,
   "RUST_RULES.md": 1,
-  "JAVASCRIPT_RULES.md": 1,
+  "JAVASCRIPT_RULES.md": 2,
   "TYPESCRIPT_RULES.md": 2,
   "typescript/PNPM_WORKSPACE.md": 1,
   "typescript/ELECTRON.md": 1,
