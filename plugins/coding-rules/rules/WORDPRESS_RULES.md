@@ -1,5 +1,5 @@
 # Version
-2
+3
 
 Increase this version number whenever this rule file changes.
 
@@ -8,6 +8,7 @@ Increase this version number whenever this rule file changes.
 See `COMMON_RULES.md` for rules that apply to all languages.
 See `PHP_RULES.md` for general PHP rules — this file only covers WordPress-specific idioms and does not restate them.
 See `WORDPRESS_THEMES.md` for building **custom blocks** when core blocks / FSE templates can't produce the design — block anatomy, the `@wordpress/scripts` build workflow, shared partials, and the pattern-seed gotcha.
+See `wordpress/BROWSER_JAVASCRIPT.md` for the browser scripts a theme or plugin enqueues (front end and wp-admin) — use it instead of `JAVASCRIPT_RULES.md`.
 
 These rules cover **block themes (FSE)** and **plugins**. Classic `functions.php`-driven themes are out of scope.
 

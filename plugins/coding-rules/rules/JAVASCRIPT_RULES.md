@@ -1,5 +1,5 @@
 # Version
-3
+4
 
 Increase this version number whenever this rule file changes.
 
@@ -9,6 +9,7 @@ Browser widgets bundled with npm + webpack use `javascript/BROWSER_WIDGET.md` in
 
 See `COMMON_RULES.md` for rules that apply to all languages.
 See `TYPESCRIPT_RULES.md` for the TypeScript type layer on top of these conventions.
+WordPress themes and plugins: browser scripts follow `wordpress/BROWSER_JAVASCRIPT.md` instead of this file.
 
 ## Runtime & Module System
 
