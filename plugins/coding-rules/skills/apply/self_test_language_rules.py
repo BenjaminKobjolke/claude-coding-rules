@@ -4,6 +4,7 @@ from apply import run
 from file_io import load_json
 from file_io import read_text
 from pathlib import Path
+import step_rules
 import tempfile
 
 
@@ -31,6 +32,9 @@ def self_test():
         item["rule"] == "COMMON_RULES.md" and item["status"] == "updated"
         for item in first_delta["rules"]
     ), first_delta
+    step_heading = "## Coding-Rules Plugin Updates in Tickets Watcher Runs"
+    for step_file in step_rules.STEP_FILES.values():
+        assert step_heading in read_text(delta_project / step_file), step_file
 
     for rule, title in language_rules:
         assert rule in shipped_versions, rule
@@ -50,4 +54,6 @@ def self_test():
     )
     common_rules = read_text(shipped_root / "rules" / "COMMON_RULES.md")
     assert "## Upstream Forks" in common_rules
+    assert step_heading in common_rules
+    assert "claude plugin list --json" in common_rules
     assert "| Rust" in common_rules
