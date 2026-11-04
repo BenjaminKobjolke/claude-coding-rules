@@ -1,5 +1,5 @@
 # Version
-2
+3
 
 Increase this version number whenever this rule file changes.
 
@@ -13,6 +13,8 @@ and test conventions come from the paired runtime file:
 - Bun CLI apps: `JAVASCRIPT_RULES.md` (all of it applies, with `.ts` file
   extensions).
 - pnpm/Node workspaces: `typescript/PNPM_WORKSPACE.md` (do not apply
+  `JAVASCRIPT_RULES.md`).
+- Thunderbird add-ons: `javascript/THUNDERBIRD_EXTENSION.md` (do not apply
   `JAVASCRIPT_RULES.md`).
 - Browser code bundled by another project type: that type's own section.
 

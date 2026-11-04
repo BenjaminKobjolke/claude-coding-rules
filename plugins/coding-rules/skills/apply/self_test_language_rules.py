@@ -19,6 +19,10 @@ def self_test():
             "javascript/BROWSER_WIDGET.md",
             "# Browser Widget Rules (JavaScript, npm + webpack)",
         ),
+        (
+            "javascript/THUNDERBIRD_EXTENSION.md",
+            "# JavaScript Rules (Thunderbird WebExtension)",
+        ),
         ("rust/SLINT.md", "# Slint Desktop UI Rules (Rust)"),
         (
             "implementation_flow_addons/mcp_server_rust.md",

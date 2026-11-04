@@ -1,5 +1,5 @@
 # Version
-13
+14
 
 Increase this version number whenever this rule file changes.
 
@@ -58,6 +58,12 @@ Pair `project_type/FRONTEND.md` with `TYPESCRIPT_RULES.md` and
 `typescript/PNPM_WORKSPACE.md`. Add `typescript/ELECTRON.md` when the workspace
 has an Electron desktop app. `DESIGN_RULES.md` applies. Do not apply
 `JAVASCRIPT_RULES.md` to this setup.
+
+## Thunderbird Add-ons
+
+Thunderbird MailExtensions use `javascript/THUNDERBIRD_EXTENSION.md` with
+`COMMON_RULES.md`. Add `DESIGN_RULES.md` when the add-on has popup or options UI. Never apply
+`JAVASCRIPT_RULES.md` to a Thunderbird add-on.
 
 ## Server-Rendered PHP Frontend — `project_type/SERVER_RENDERED_FRONTEND.md`
 
