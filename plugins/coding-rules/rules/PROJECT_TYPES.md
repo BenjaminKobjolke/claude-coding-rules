@@ -1,5 +1,5 @@
 # Version
-12
+13
 
 Increase this version number whenever this rule file changes.
 
@@ -78,6 +78,11 @@ Content-only repositories mounted as the `sites/` submodule of a multi-site PHP 
 framework. Pair with `COMMON_RULES.md` and `DESIGN_RULES.md`; add `SCSS_RULES.md` only when a
 `{site}/scss/` folder exists. Skip `PHP_RULES.md` and `php/APP.md`; the framework itself uses the
 server-rendered type.
+
+## API Contract — `project_type/API_CONTRACT.md`
+
+Repositories containing shared API contract JSON files and a README, with no application code.
+Pair with `COMMON_RULES.md` only; skip language rules.
 
 ## Flutter app vs. library
 

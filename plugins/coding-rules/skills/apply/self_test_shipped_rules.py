@@ -13,6 +13,7 @@ from self_test_language_rules import self_test as test_language_rules
 from self_test_rest_api_split import self_test as test_rest_api_split
 import self_test_server_rendered_frontend as server_rendered_test
 import self_test_landing_page_content as landing_page_content_test
+import self_test_api_contract as api_contract_test
 import re
 import tempfile
 
@@ -283,3 +284,4 @@ def self_test():
 
     server_rendered_test.self_test(shipped_root, shipped_versions)
     landing_page_content_test.self_test(shipped_root, shipped_versions)
+    api_contract_test.self_test(shipped_root, shipped_versions)
