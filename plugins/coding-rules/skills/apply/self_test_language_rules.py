@@ -14,6 +14,10 @@ def self_test():
     language_rules = (
         ("CPP_RULES.md", "# C++ Rules"),
         ("RUST_RULES.md", "# Rust Rules"),
+        (
+            "javascript/BROWSER_WIDGET.md",
+            "# Browser Widget Rules (JavaScript, npm + webpack)",
+        ),
         ("rust/SLINT.md", "# Slint Desktop UI Rules (Rust)"),
         (
             "implementation_flow_addons/mcp_server_rust.md",

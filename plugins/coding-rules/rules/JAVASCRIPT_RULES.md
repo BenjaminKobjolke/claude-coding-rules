@@ -1,9 +1,11 @@
 # Version
-2
+3
 
 Increase this version number whenever this rule file changes.
 
 # JavaScript Rules (Bun / Node, ESM)
+
+Browser widgets bundled with npm + webpack use `javascript/BROWSER_WIDGET.md` instead of this file.
 
 See `COMMON_RULES.md` for rules that apply to all languages.
 See `TYPESCRIPT_RULES.md` for the TypeScript type layer on top of these conventions.
