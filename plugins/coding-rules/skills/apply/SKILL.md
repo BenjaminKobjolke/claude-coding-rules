@@ -30,9 +30,9 @@ Always read `${CLAUDE_PLUGIN_ROOT}/rules/COMMON_RULES.md` and `${CLAUDE_PLUGIN_R
 - Language-specific rules: `PHP_RULES.md`, `PYTHON_RULES.md`, `CSHARP_RULES.md`, `CPP_RULES.md`, `RUST_RULES.md` (Rust Cargo projects with a `Cargo.toml` containing `[package]` or `[workspace]`, at the repository root or in a subfolder such as `src/`), `JAVASCRIPT_RULES.md` (Bun CLI apps; not Thunderbird add-ons; browser widgets use `javascript/BROWSER_WIDGET.md`; also add `TYPESCRIPT_RULES.md` for TypeScript), `TYPESCRIPT_RULES.md` (any TypeScript project), `FLUTTER_RULES.md`, `KOTLIN_RULES.md` (Kotlin / native Android Gradle projects, app or library; setup files in `kotlin_setup_files/`), `SVELTE_RULES.md`, `SCSS_RULES.md`, `ARDUINO_RULES.md`, `AUTOHOTKEY_RULES.md`, `UNITY_CSHARP_RULES.md`, `WORDPRESS_RULES.md`
 - Rust optional rules: add `rust/SLINT.md` when a workspace `Cargo.toml` depends on `slint`.
 - TypeScript optional rules: `typescript/PNPM_WORKSPACE.md` when `pnpm-workspace.yaml` exists (Node runtime and vitest); when applying it, skip `JAVASCRIPT_RULES.md`. Add `typescript/ELECTRON.md` when a `package.json` depends on `electron`.
-- WordPress optional rules: `wordpress/BROWSER_JAVASCRIPT.md` with `WORDPRESS_RULES.md` when the theme or plugin ships hand-written browser scripts (`.js` under `assets/js/` or enqueued via `wp_enqueue_script`); when applying it, skip `JAVASCRIPT_RULES.md`. Block-editor builds keep `WORDPRESS_THEMES.md` alongside.
-- JavaScript browser widgets: `javascript/BROWSER_WIDGET.md` when a `package.json` (at the root or in a widget subfolder) lists `webpack` and the project ships a browser bundle instead of a `bin`/Bun CLI; apply it instead of `JAVASCRIPT_RULES.md`, with `DESIGN_RULES.md`. An existing project that has `JAVASCRIPT_RULES.md`: remove that block from `CODING_RULES.md` and its key from `coding-rules.json`, then re-run apply with the new selection.
-- JavaScript optional rules: `javascript/THUNDERBIRD_EXTENSION.md` when `manifest.json` has `browser_specific_settings.gecko` and the add-on targets Thunderbird (`messenger.*` calls, Thunderbird-only permissions such as `messagesRead`/`accountsRead`, or `experiment_apis` using Thunderbird modules). When applying it, skip `JAVASCRIPT_RULES.md`. An existing add-on that already has the `JAVASCRIPT_RULES.md` block: remove that block from `CODING_RULES.md` and its key from `coding-rules.json`, then re-run apply with the new selection.
+- WordPress optional rules: `wordpress/BROWSER_JAVASCRIPT.md` with `WORDPRESS_RULES.md` when the theme or plugin ships hand-written browser scripts (`.js` under `assets/js/` or enqueued via `wp_enqueue_script`); when applying it, skip `JAVASCRIPT_RULES.md`. Block-editor builds keep `WORDPRESS_THEMES.md` alongside. An existing project that has `JAVASCRIPT_RULES.md`: move its project-only sections out, remove that block from `CODING_RULES.md` and its key from `coding-rules.json`, then re-run apply with the new selection.
+- JavaScript browser widgets: `javascript/BROWSER_WIDGET.md` when a `package.json` (at the root or in a widget subfolder) lists `webpack` and the project ships a browser bundle instead of a `bin`/Bun CLI; apply it instead of `JAVASCRIPT_RULES.md`, with `DESIGN_RULES.md`. An existing project that has `JAVASCRIPT_RULES.md`: move its project-only sections out, remove that block from `CODING_RULES.md` and its key from `coding-rules.json`, then re-run apply with the new selection.
+- JavaScript optional rules: `javascript/THUNDERBIRD_EXTENSION.md` when `manifest.json` has `browser_specific_settings.gecko` and the add-on targets Thunderbird (`messenger.*` calls, Thunderbird-only permissions such as `messagesRead`/`accountsRead`, or `experiment_apis` using Thunderbird modules). When applying it, skip `JAVASCRIPT_RULES.md`. An existing add-on that already has the `JAVASCRIPT_RULES.md` block: move its project-only sections out, remove that block from `CODING_RULES.md` and its key from `coding-rules.json`, then re-run apply with the new selection.
 - Python optional rules: `python/WEB_TEMPLATES.md` for Jinja2 or Flask web templates;
   `python/GUI.md` for PySide6 desktop apps; `python/LOCALIZATION.md` for translated
   content; `python/RELEASE.md` for release tooling; `python/INSTALLER.md` for NSIS
@@ -249,24 +249,41 @@ A project applied before the split has the flow inlined in `CODING_RULES.md`. Mo
   substitute real paths/dirs), insert `<!-- tailored -->`
   on its own line directly after the block's title heading. `apply.py` never
   auto-overwrites a tailored block: a newer source version is reported as
-  `tailored-stale` in `needs_user_decision`. Offer these choices, with **Use the
-  standard rules** as the default:
-  - **Use the standard rules**: delete the `<!-- tailored -->` line and re-run
-    `apply.py`. It replaces the block with the current source like any stale block.
-    Check the `preserved` list for project-only sections that survived, and report
-    anything the tailoring had that is now gone.
+  `tailored-stale` in `needs_user_decision`. First re-run Phase A for this block's
+  language against the project's actual runtime. For a tailored `JAVASCRIPT_RULES.md`
+  block, a WordPress theme/plugin with hand-written browser scripts uses
+  `wordpress/BROWSER_JAVASCRIPT.md` with `WORDPRESS_RULES.md`; a webpack browser
+  widget uses `javascript/BROWSER_WIDGET.md` with `DESIGN_RULES.md`; a Thunderbird
+  add-on uses `javascript/THUNDERBIRD_EXTENSION.md`.
+  Offer these choices:
+  - **Switch to the matching rules**: default when Phase A selects a different
+    shipped file. Move every project-only section of the old block (headings the
+    new source does not contain, real paths, project deviations) into a
+    user-authored top-level section after the last managed block so apply preserves
+    it. Delete the old block from `CODING_RULES.md` and its key from
+    `coding-rules.json`, then re-run `apply.py` with the new selection. Keep setup
+    files: these specialized JavaScript files use the same
+    `javascript_setup_files/tools/` scripts, so copied tools stay; diff them against
+    templates only if the new file names others. Report what moved and what was
+    dropped.
+  - **Use the standard rules**: default only when the standard file fits the
+    project's runtime (for `JAVASCRIPT_RULES.md`, a Bun/Node CLI). Delete the
+    `<!-- tailored -->` line and re-run `apply.py`. Check the `preserved` list for
+    project-only sections that survived, and report anything the tailoring had
+    that is now gone.
   - **Hand-merge into the tailored copy**: merge the source changes, then bump the
     block's version to match the source. `apply.py` reads the applied version from
     `coding-rules.json`, not from the block — also bump that rule's version in the
     manifest, otherwise the next run still reports `tailored-stale`. Re-run
     `apply.py` to confirm it comes back `unchanged`.
   - **Request new rules from the library**: use the request route described in
-    *When the shipped rules do not fit*. Until those rules ship, use the standard
-    rules above unless the user picks the hand merge.
+    *When the shipped rules do not fit*. Until those rules ship, keep the tailored
+    block (hand merge) or use the standard rules only if they fit.
 - A tailored addon usually has tailored **setup files** too (e.g.
   `tools/graphify_update.bat` from `implementation_flow_addons/`). `apply.py` never touches those —
   diff the project copy against the template on a `tailored-stale` merge. This applies
-  to both **Use the standard rules** and the hand merge: for the standard rules,
+  to **Switch to the matching rules**, **Use the standard rules** and the hand merge: for switched rules,
+  keep shared setup files unless the new file names others; for standard rules,
   re-copy the template and keep only the project's required substitutions (`CODE_DIR`,
   paths); for a hand merge, re-apply those substitutions.
 - User-authored top-level sections after the last managed block (project deviations,

@@ -13,6 +13,7 @@ def self_test():
     shipped_versions = load_json(shipped_root / "rules" / "versions.json", {})
     apply_skill = read_text(shipped_root / "skills" / "apply" / "SKILL.md")
     language_rules = (
+        ("wordpress/BROWSER_JAVASCRIPT.md", "# WordPress Browser JavaScript Rules"),
         ("CPP_RULES.md", "# C++ Rules"),
         ("RUST_RULES.md", "# Rust Rules"),
         (
