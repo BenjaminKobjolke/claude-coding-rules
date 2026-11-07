@@ -1,5 +1,5 @@
 # Version
-14
+15
 
 Increase this version number whenever this rule file changes.
 
@@ -89,6 +89,13 @@ server-rendered type.
 
 Repositories containing shared API contract JSON files and a README, with no application code.
 Pair with `COMMON_RULES.md` only; skip language rules.
+
+## Windows Command-Line Helpers — `project_type/WINDOWS_CLI_HELPERS.md`
+
+Folders of `.bat` and `.ps1` wrappers on `PATH`, often with standalone Python helpers and
+vendored binaries, without a language manifest. Pair with `COMMON_RULES.md`; add
+`AUTOHOTKEY_RULES.md` when `.ahk` scripts exist. Skip `PYTHON_RULES.md` unless a subfolder has
+its own `pyproject.toml`, and skip `DESIGN_RULES.md`.
 
 ## Flutter app vs. library
 

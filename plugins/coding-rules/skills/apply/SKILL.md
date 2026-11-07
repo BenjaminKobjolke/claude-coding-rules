@@ -48,6 +48,16 @@ Always read `${CLAUDE_PLUGIN_ROOT}/rules/COMMON_RULES.md` and `${CLAUDE_PLUGIN_R
 - PHP optional rules: `php/APP.md` for PHP web apps and APIs (`public/index.php`, Slim, Twig, Cycle ORM). For server-rendered PHP/Twig web apps, select `project_type/SERVER_RENDERED_FRONTEND.md` when PHP routes requests and renders the pages; this applies whether page data comes from a local database, a separate API, or both. Pair it with `PHP_RULES.md`, `php/APP.md`, `DESIGN_RULES.md`, and only the asset-language rules the project uses (for example `SCSS_RULES.md` or `TYPESCRIPT_RULES.md`). Do not select `project_type/REST_API.md` for the server-rendered app; that type is for a project whose primary product is a REST API. Do not select `project_type/FRONTEND.md` for PHP-rendered pages; it is for browser-rendered SPAs. Composer packages with `"type": "library"` get `PHP_RULES.md` + `project_type/PHP_LIBRARY.md` and skip `php/APP.md`. An existing PHP project crossing the v5 split keeps `php/APP.md` automatically via `split_kept`.
 - Landing-page content repo: root `config.php` plus `{site}/templates/index.twig`, no `composer.json`, and a README or parent `.gitmodules` identifying it as the framework's `sites/` content, gets `project_type/LANDING_PAGE_CONTENT.md` with `COMMON_RULES.md` and `DESIGN_RULES.md`; add `SCSS_RULES.md` only when `{site}/scss/` exists. Skip `PHP_RULES.md` and `php/APP.md`. Existing PHP blocks are kept: remove those blocks from `CODING_RULES.md` and their manifest keys from `coding-rules.json`, then re-run apply with the new selection.
 - API contract repo: root `*.json` contract files plus a `README.md` naming the producer and consumers, with no language manifest (`composer.json`, `pyproject.toml`, `pubspec.yaml`, or `package.json`), gets `project_type/API_CONTRACT.md` with `COMMON_RULES.md` only; skip language rules.
+- Windows command-line helper collection: a folder meant for `PATH` whose own code is mostly
+  root-level `.bat`/`.cmd` wrappers (often with sibling `.ps1` or standalone Python scripts,
+  frequently next to committed third-party `.exe`/`.dll` files or bundle folders), with no
+  language manifest (`composer.json`, `pyproject.toml`, `pubspec.yaml`, `package.json`,
+  `Cargo.toml`, `*.csproj`), gets `project_type/WINDOWS_CLI_HELPERS.md` with `COMMON_RULES.md`;
+  add `AUTOHOTKEY_RULES.md` when `.ahk` scripts exist. Skip `PYTHON_RULES.md` for standalone
+  Python helper scripts; add it only for a subfolder with its own `pyproject.toml`. Skip
+  `DESIGN_RULES.md`. An existing project that applied `PYTHON_RULES.md` only for such scripts:
+  move its project-only sections out, remove that block from `CODING_RULES.md` and its key from
+  `coding-rules.json`, then re-run apply with the new selection.
 - Flutter optional rules: `flutter/APP.md` for Flutter apps (`lib/main.dart`, builds an
   APK). Skip it for library/plugin packages (pub packages whose only app is `example/`) —
   they get `FLUTTER_RULES.md` alone.
@@ -172,7 +182,8 @@ Gotchas seen in practice:
   Use `.` as the code dir and add a root `.graphifyignore` excluding every non-code
   file (`*.md`, `*.json`, `LICENSE`, `tools/`, `.claude/`, `claude-plans/`,
   `graphify-out/`) — the build then stays AST-only. Set `CODE_DIR=.` in
-  `tools/graphify_update.bat` and pin `.` in `CLAUDE.md`.
+  `tools/graphify_update.bat` and pin `.` in `CLAUDE.md`. For a Windows helper collection,
+  also exclude vendored binaries and bundle folders.
 
 If no interpreter works, skip this fast path and use the fallback below
 instead — tell the user: "No Python interpreter found (`python`/`python3`/`py`
