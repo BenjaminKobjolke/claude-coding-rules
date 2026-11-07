@@ -1,5 +1,5 @@
 # Version
-13
+14
 
 Increase this version number whenever this rule file changes.
 
@@ -104,6 +104,20 @@ record crashes that prevent the rest of the application from booting.
 
 The example class, viewer, test, documentation and installation instructions are in
 `php_setup_files/fatal_error_log/`. Turbo Habits API is the reference implementation.
+
+---
+
+## App Error Report Intake (BINDING)
+
+Applies when this API serves an app covered by `COMMON_RULES.md` → "App Error Reporting (BINDING)". This intake is distinct from the fatal error log, which records crashes in the API's own boot process.
+
+- Accept reports at `POST /api/v1/app-errors` from guests; link a report to an account when a valid user token is provided. Treat an invalid token as a guest submission rather than rejecting the report.
+- Validate through an input value object. Redact and cap all report text again on the server. Do not store the client IP address, request headers, or request body.
+- Rate-limit by socket address, ignoring `X-Forwarded-For`, with a configurable limit. Apply configured retention and prune expired reports.
+- Provide a protected `GET` read route on the same resource for admins or the scheduled check only. Guard it using the API's auth variant: an admin role for JWT auth, or an admin key for API-key auth. Follow "List Endpoints: Paging, Sorting, Filtering (BINDING)" with filters for kind, platform, app version, and time range, ordered newest first.
+- Document submission and retrieval in `docs/APP_ERROR_REPORTS.md` and the API testing collection.
+
+Turbo Habits API is the intake reference.
 
 ---
 

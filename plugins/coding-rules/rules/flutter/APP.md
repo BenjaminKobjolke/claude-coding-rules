@@ -1,5 +1,5 @@
 # Version
-3
+4
 
 Increase this version number whenever this rule file changes.
 
@@ -936,6 +936,19 @@ holds its data in memory only. The server half of this contract is
   backgrounded and resumes; the interval clamp.
 
 ---
+
+---
+
+## Error Reporting
+<!-- steps: review, code -->
+
+Implement the common rule in `COMMON_RULES.md` → "App Error Reporting (BINDING)". Keep the implementation under `lib/services/error_reporting/`, with separate capture, reporter, interceptor, and redactor responsibilities. GoRabbits (`turbo-habits-app`) is the reference.
+
+- Capture non-silent framework errors with `FlutterError.onError`, then forward them to Flutter's default handler. Capture uncaught asynchronous or platform errors with `PlatformDispatcher.instance.onError`, and startup failures with a `try`/`catch` around startup in `main.dart`.
+- Add a Dio interceptor to the shared API client for responses with status ≥500. Report only the HTTP method, path, and status; never include query strings, headers, or request or response bodies.
+- Send reports through a separate Dio instance without the reporting interceptor and without Logarte, so reporting cannot recurse and report traffic is not recorded by the debug network logger.
+- Use a 2,000-character message limit, a 16,000-character stack limit, deduplication per app start by kind, type, and sanitized message, a maximum of 20 reports per start, and a 10-second timeout. Offline or failed delivery goes to `AppLogger` and is dropped.
+- Enable reporting in release builds and in non-release builds configured with a non-production `API_SERVER_URL`. Disable it in debug builds pointed at the live API.
 
 ---
 
