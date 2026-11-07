@@ -65,7 +65,8 @@ echo --- god nodes (top 5) ---
 "%GRAPHIFY%" god-nodes --top 5
 echo.
 echo --- sample query ---
-"%GRAPHIFY%" query "What are the main modules and how do they connect?"
+REM --context call: follow call edges; a question mentioning "modules" otherwise gets import context and may show only one node.
+"%GRAPHIFY%" query "What are the main modules and how do they connect?" --context call
 
 popd
 endlocal

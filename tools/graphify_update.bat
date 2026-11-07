@@ -79,7 +79,8 @@ if errorlevel 1 (
 )
 echo.
 echo --- sample query ---
-"%GRAPHIFY%" query "What are the main modules and how do they connect?"
+REM --context call: follow call edges; a question mentioning "modules" otherwise gets import context and may show only one node.
+"%GRAPHIFY%" query "What are the main modules and how do they connect?" --context call
 if errorlevel 1 (
   echo ERROR: graphify query smoke check failed.
   popd & endlocal & exit /b 1
