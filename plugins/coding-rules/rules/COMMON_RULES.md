@@ -1,5 +1,5 @@
 # Version
-18
+19
 
 Increase this version number whenever this rule file changes.
 
@@ -524,6 +524,27 @@ ports, base URLs. They differ across machines and environments and make code non
   `*_RULES.md` already mandates), with a committed `.example` template documenting every key.
 - Distinct from the secrets rule above: this is about **portability** (runs anywhere), not
   secrecy. A non-secret hostname still belongs in config, not in code.
+
+---
+
+## Debug Tools Only on Local Machines (BINDING)
+
+Debug switches and debug-only features are on only on a developer machine — never on a
+deployed copy (live site, server, store or installer build).
+
+- **Off by default.** Tracked config, `.example` templates and build defaults ship with debug
+  off (`'debug' => false`, `DEBUG=0`, release build). A missing key reads as off.
+- **On only through a local override** that is gitignored and excluded from deploy
+  (`config/app.local.php`, `.env.local`, a debug build; listed in `.gitignore` and
+  `.deployignore` or the upload filter). Commit a `.example` of the override with debug on
+  and name the copy step in the README setup.
+- **One switch gates everything debug-only:** raw error output and stack traces, preview or
+  sample routes (`?preview=...`), debug toolbars, verbose network logs, seeded test logins.
+  Never gate them on a URL parameter, a hidden route or a hostname check alone.
+- **Deployed errors:** show a short generic message; send the detail to the logger (see
+  "Centralized Logger").
+- Found debug on in a tracked or deployed config? Turn it off there and move the local need
+  into the override — "previews need it" is not a reason to keep it on.
 
 ---
 
