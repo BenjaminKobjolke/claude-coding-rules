@@ -24,6 +24,10 @@ JAVASCRIPT_STACKS = (
         "javascript/THUNDERBIRD_EXTENSION.md",
         "# JavaScript Rules (Thunderbird WebExtension)",
     ),
+    (
+        "typescript/OBSIDIAN_PLUGIN.md",
+        "# Obsidian Plugin Rules (TypeScript)",
+    ),
 )
 
 

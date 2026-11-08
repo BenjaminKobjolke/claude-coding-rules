@@ -1,5 +1,5 @@
 # Version
-3
+4
 
 Increase this version number whenever this rule file changes.
 
@@ -15,6 +15,8 @@ and test conventions come from the paired runtime file:
 - pnpm/Node workspaces: `typescript/PNPM_WORKSPACE.md` (do not apply
   `JAVASCRIPT_RULES.md`).
 - Thunderbird add-ons: `javascript/THUNDERBIRD_EXTENSION.md` (do not apply
+  `JAVASCRIPT_RULES.md`).
+- Obsidian plugins: `typescript/OBSIDIAN_PLUGIN.md` (do not apply
   `JAVASCRIPT_RULES.md`).
 - Browser code bundled by another project type: that type's own section.
 
@@ -37,7 +39,7 @@ Strict from day one:
 
 `types` follows the runtime: `bun-types` for Bun, `node` for Node packages,
 and `vite/client` for Vite browser apps. Never mix Node and DOM types in one
-package.
+package — except Obsidian plugins, see `typescript/OBSIDIAN_PLUGIN.md`.
 
 Never weaken `strict` per-file. `// @ts-expect-error` needs a trailing reason
 comment; `// @ts-ignore` is forbidden.

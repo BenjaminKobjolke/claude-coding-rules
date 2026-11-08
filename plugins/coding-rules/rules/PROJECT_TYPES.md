@@ -1,5 +1,5 @@
 # Version
-15
+16
 
 Increase this version number whenever this rule file changes.
 
@@ -64,6 +64,12 @@ has an Electron desktop app. `DESIGN_RULES.md` applies. Do not apply
 Thunderbird MailExtensions use `javascript/THUNDERBIRD_EXTENSION.md` with
 `COMMON_RULES.md`. Add `DESIGN_RULES.md` when the add-on has popup or options UI. Never apply
 `JAVASCRIPT_RULES.md` to a Thunderbird add-on.
+
+## Obsidian Plugins
+
+Obsidian community plugins use `typescript/OBSIDIAN_PLUGIN.md` with
+`COMMON_RULES.md` and `TYPESCRIPT_RULES.md`. Add `DESIGN_RULES.md` when the plugin has settings
+or views. Never apply `JAVASCRIPT_RULES.md` to an Obsidian plugin.
 
 ## Server-Rendered PHP Frontend — `project_type/SERVER_RENDERED_FRONTEND.md`
 

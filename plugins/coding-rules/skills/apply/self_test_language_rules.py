@@ -24,6 +24,10 @@ def self_test():
             "javascript/THUNDERBIRD_EXTENSION.md",
             "# JavaScript Rules (Thunderbird WebExtension)",
         ),
+        (
+            "typescript/OBSIDIAN_PLUGIN.md",
+            "# Obsidian Plugin Rules (TypeScript)",
+        ),
         ("rust/SLINT.md", "# Slint Desktop UI Rules (Rust)"),
         (
             "implementation_flow_addons/mcp_server_rust.md",
