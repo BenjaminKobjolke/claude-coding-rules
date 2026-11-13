@@ -1,5 +1,5 @@
 # Version
-4
+5
 
 # Flutter Libraries
 
@@ -29,6 +29,7 @@ implementation, so the next project picks it up automatically.
 | `flutter_screen_recording` | `^2.0.25` | Native screen recording (MediaProjection / ReplayKit) — used by the `automated_screenshot_connector` demo host |
 | `mobile_scanner` | `^7.4.2` | Camera QR / barcode scanning — Android, iOS, macOS, web only (no Windows/Linux) |
 | `code_forge` + `re_highlight` | `^11.3.0` / `^0.0.3` | Read-only code viewer with syntax highlighting and line numbers |
+| `play_install_referrer` | `^0.6.0` | Read the Google Play install referrer (e.g. an invitation token from a store link) — Android only |
 
 Versions are the last confirmed-good constraints. Verify against pub.dev before pinning a new
 project — do not assume.
@@ -144,6 +145,35 @@ an unknown one.
 Reference implementation from Tickets App:
 
 - `lib/screens/most_complex_function_screen.dart` — read-only viewer of a todo's most complex function (#12564).
+
+## Install referrer — `play_install_referrer`
+
+Read the Google Play install referrer so the first app start can pick up data passed through a Play
+Store link; the first use is a habit invitation token.
+
+```yaml
+dependencies:
+  # Play install referrer
+  play_install_referrer: ^0.6.0
+```
+
+Android only; needs Flutter >= 3.44. Gate the call by platform and never call it on other platforms.
+Only a Play-distributed install carries a referrer.
+
+House conventions:
+
+- Read it once, on the first start only, using a persisted flag.
+- Parse the expected query parameter and ignore any other referrer.
+- Log failures through `AppLogger` and continue; a missing referrer is never an error.
+- Hand the value to the existing store or flow instead of acting on it directly, and keep a manual
+  fallback such as pasting the link.
+
+Reference implementation from Turbo Habits App:
+
+- `turbo-habits-app/lib/services/install_referrer_reader.dart` — first-start reader that takes
+  `invitation=<token>` (#15933).
+- `turbo-habits-app/test/services/install_referrer_reader_test.dart` — parsing, run-once and error
+  cases.
 
 ## Everything else
 
