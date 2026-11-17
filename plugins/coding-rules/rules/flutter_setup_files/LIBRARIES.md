@@ -1,5 +1,5 @@
 # Version
-5
+6
 
 # Flutter Libraries
 
@@ -30,6 +30,7 @@ implementation, so the next project picks it up automatically.
 | `mobile_scanner` | `^7.4.2` | Camera QR / barcode scanning — Android, iOS, macOS, web only (no Windows/Linux) |
 | `code_forge` + `re_highlight` | `^11.3.0` / `^0.0.3` | Read-only code viewer with syntax highlighting and line numbers |
 | `play_install_referrer` | `^0.6.0` | Read the Google Play install referrer (e.g. an invitation token from a store link) — Android only |
+| `dart_smb2` | `^0.4.1` | SMB 2/3 network share client (SMB 2.0.2 – 3.1.1, signing, encryption); bundles libsmb2 + OpenSSL — see license notice |
 
 Versions are the last confirmed-good constraints. Verify against pub.dev before pinning a new
 project — do not assume.
@@ -174,6 +175,45 @@ Reference implementation from Turbo Habits App:
   `invitation=<token>` (#15933).
 - `turbo-habits-app/test/services/install_referrer_reader_test.dart` — parsing, run-once and error
   cases.
+
+## Network shares (SMB) — `dart_smb2`
+
+Browse shares and read or write files on Samba, Windows and NAS servers. The first use is SMB 3
+support in Media File Explorer App (#17070).
+
+```yaml
+dependencies:
+  # SMB network shares
+  dart_smb2: ^0.4.1
+```
+
+Requires Dart >= 3.10 and Flutter >= 3.47. Android requires minSdk 24 and supports arm64-v8a,
+armeabi-v7a and x86_64; add `android.permission.INTERNET`. macOS requires
+`com.apple.security.network.client` in both entitlement files. This is a plain Dart package, not a
+Flutter plugin. Its build hook downloads the libsmb2 binary for each target and verifies its
+SHA-256, so the first build needs network access. It supports SMB 2.0.2 through SMB 3.1.1, NTLM,
+SMB3 signing and AES-GCM encryption; it does not support SMB 1 / CIFS.
+
+License notice:
+
+- The package is BSD-3-Clause; bundled libsmb2 is LGPL-2.1-or-later; linked OpenSSL libcrypto is
+  Apache-2.0.
+- Ship the LGPL-2.1 and Apache-2.0 license texts and the package `NOTICE`. Point to the matching
+  libsmb2 source release, including its libsmb2-scripts commit, and register the notices on the
+  app's license page with `LicenseRegistry.addLicense`, because Flutter does not list them.
+
+House conventions:
+
+- Keep `Smb2Pool` behind the app's remote-client wrapper interface.
+- Inject the pool connector so tests can replace it.
+- Let the client negotiate the highest shared dialect instead of forcing one.
+
+Reference implementation from Media File Explorer App:
+
+- `android_folder_gallery/lib/services/smb/smb_client_wrapper.dart` — wraps `Smb2Pool` behind
+  `RemoteClientWrapper` (#17070).
+- `android_folder_gallery/test/services/smb/smb_client_wrapper_protocol_test.dart` — SMB 2/3
+  dialect negotiation tests.
 
 ## Everything else
 
