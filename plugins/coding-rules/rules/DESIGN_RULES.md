@@ -1,5 +1,5 @@
 # Version
-4
+5
 
 Increase this version number whenever this rule file changes.
 
@@ -12,6 +12,7 @@ They are about **decisions**, not about a framework. The per-stack implementatio
 guides are:
 
 - `python_setup_files/MODERN_GUI.md` — PySide6 desktop apps
+- `python/TKINTER.md` — tkinter desktop tools (Python)
 - `rust/SLINT.md` — Slint desktop apps (Rust)
 - `project_type/FRONTEND.md` — web SPAs (Vite, Tailwind, dark mode)
 - `project_type/SERVER_RENDERED_FRONTEND.md` — server-rendered PHP web frontends (Twig, Bootstrap)

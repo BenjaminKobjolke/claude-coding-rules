@@ -1,5 +1,5 @@
 # Version
-9
+10
 
 Increase this version number whenever this rule file changes.
 
@@ -11,6 +11,7 @@ See `COMMON_RULES.md` for rules that apply to all languages.
 
 - `python/WEB_TEMPLATES.md` — web templates with Jinja2 or Flask.
 - `python/GUI.md` — PySide6 desktop interface.
+- `python/TKINTER.md` — tkinter desktop interface (small stdlib-only tools).
 - `python/LOCALIZATION.md` — translated content.
 - `python/RELEASE.md` — release tooling.
 - `python/INSTALLER.md` — Windows installer.

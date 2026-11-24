@@ -34,12 +34,12 @@ Always read `${CLAUDE_PLUGIN_ROOT}/rules/COMMON_RULES.md` and `${CLAUDE_PLUGIN_R
 - JavaScript browser widgets: `javascript/BROWSER_WIDGET.md` when a `package.json` (at the root or in a widget subfolder) lists `webpack` and the project ships a browser bundle instead of a `bin`/Bun CLI; apply it instead of `JAVASCRIPT_RULES.md`, with `DESIGN_RULES.md`. An existing project that has `JAVASCRIPT_RULES.md`: move its project-only sections out, remove that block from `CODING_RULES.md` and its key from `coding-rules.json`, then re-run apply with the new selection.
 - JavaScript optional rules: `javascript/THUNDERBIRD_EXTENSION.md` when `manifest.json` has `browser_specific_settings.gecko` and the add-on targets Thunderbird (`messenger.*` calls, Thunderbird-only permissions such as `messagesRead`/`accountsRead`, or `experiment_apis` using Thunderbird modules). When applying it, skip `JAVASCRIPT_RULES.md`. An existing add-on that already has the `JAVASCRIPT_RULES.md` block: move its project-only sections out, remove that block from `CODING_RULES.md` and its key from `coding-rules.json`, then re-run apply with the new selection.
 - Python optional rules: `python/WEB_TEMPLATES.md` for Jinja2 or Flask web templates;
-  `python/GUI.md` for PySide6 desktop apps; `python/LOCALIZATION.md` for translated
+  `python/GUI.md` for PySide6 desktop apps; `python/TKINTER.md` for tkinter desktop apps (the code imports `tkinter`), instead of `python/GUI.md`; `python/LOCALIZATION.md` for translated
   content; `python/RELEASE.md` for release tooling; `python/INSTALLER.md` for NSIS
   installers; `python/DATABASE.md` for SQLAlchemy. Use
   `project_type/PYTHON_DESKTOP_PLUGIN.md` for Python extensions loaded inside a desktop
   application's plugin runtime. Pair it with `PYTHON_RULES.md`; skip it for standalone
-  desktop applications, which use `python/GUI.md` when built with PySide6. On first setup,
+  desktop applications, which use `python/GUI.md` when built with PySide6 or `python/TKINTER.md` when built with tkinter. On first setup,
   pick by project type and ask when unsure.
 - C# optional rules: `csharp/WINFORMS.md` for Windows Forms desktop apps
   (`System.Windows.Forms` / `<UseWindowsForms>` in the `.csproj`); skip it for console

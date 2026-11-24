@@ -1,5 +1,5 @@
 # Version
-16
+17
 
 Increase this version number whenever this rule file changes.
 
@@ -114,4 +114,4 @@ Python extensions loaded and run inside a desktop application's plugin runtime, 
 plugins. Pair with `PYTHON_RULES.md`; the rules cover the host API boundary, commands and prompts,
 long-running tasks, host-aware file access, settings, dependencies, and tests that can run without
 the host installed. Do not apply it to a standalone Python desktop app: use `python/GUI.md` for
-PySide6 applications instead.
+PySide6 applications or `python/TKINTER.md` for tkinter applications instead.
